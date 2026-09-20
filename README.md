@@ -55,7 +55,7 @@ WebClient·WebFlux는 외부 은행 연동의 필요와 학습 목적에 맞춰 
 
 ## 현재 상태
 
-Spring Boot 최소 애플리케이션을 구성했습니다. 업무 기능과 인증은 이후 단계에서 추가합니다.
+Spring Boot 최소 애플리케이션과 첫 HTTP API를 구성했습니다. 업무 기능과 인증은 이후 단계에서 추가합니다.
 
 ## 개발 환경과 실행
 
@@ -77,3 +77,19 @@ Spring Boot 최소 애플리케이션을 구성했습니다. 업무 기능과 �
 ## 학습 순서
 
 [작은 단계별 로드맵](docs/learning-roadmap.md)
+
+## 첫 API 확인
+
+서버 실행 후 다른 터미널에서 호출합니다.
+
+```bash
+curl -i http://localhost:8080/api/hello
+```
+
+HTTP 200과 JSON `{"message":"Hello, FinAccess!"}`을 반환합니다.
+이 API는 첫 요청·응답을 학습하기 위한 공개 예제입니다.
+
+## 단계별 설명
+
+- [01. 앱의 시작점과 Gradle](docs/01-first-application.md)
+- [02. 첫 API와 HTTP 응답 테스트](docs/02-first-api.md)
