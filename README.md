@@ -55,8 +55,24 @@ WebClient·WebFlux는 외부 은행 연동의 필요와 학습 목적에 맞춰 
 
 ## 현재 상태
 
-프로젝트 범위 정의를 완료했습니다. 애플리케이션 코드는 아직 없습니다.
-실행 방법은 실행 가능한 코드가 추가되는 단계에서 작성합니다.
+Spring Boot 최소 애플리케이션을 구성했습니다. 업무 기능과 인증은 이후 단계에서 추가합니다.
+
+## 개발 환경과 실행
+
+- Java 21
+- Spring Boot 4.1.1
+- Gradle Wrapper 사용: Gradle을 별도로 설치할 필요가 없습니다.
+- 현재 단계에서는 DB와 Docker 실행이 필요하지 않습니다.
+
+```bash
+./gradlew test
+./gradlew bootRun
+```
+
+기본 포트는 8080입니다. 종료는 실행 터미널에서 `Ctrl+C`를 누릅니다.
+포트가 사용 중이면 `./gradlew bootRun --args='--server.port=8081'`로 변경할 수 있습니다.
+
+실행 가능한 JAR 파일은 `./gradlew bootJar`로 생성합니다.
 
 ## 학습 순서
 
