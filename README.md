@@ -62,7 +62,7 @@ Spring Boot 최소 애플리케이션과 첫 HTTP API를 구성했습니다. 업
 - Java 21
 - Spring Boot 4.1.1
 - Gradle Wrapper 사용: Gradle을 별도로 설치할 필요가 없습니다.
-- 현재 단계에서는 DB와 Docker 실행이 필요하지 않습니다.
+- 첫 Hello API 실행에는 DB가 필요하지 않습니다. 로컬 DB 학습에는 Docker Compose를 사용합니다.
 
 ```bash
 ./gradlew test
@@ -93,3 +93,21 @@ HTTP 200과 JSON `{"message":"Hello, FinAccess!"}`을 반환합니다.
 
 - [01. 앱의 시작점과 Gradle](docs/01-first-application.md)
 - [02. 첫 API와 HTTP 응답 테스트](docs/02-first-api.md)
+
+## 로컬 PostgreSQL
+
+PostgreSQL은 현재 Spring과 연결하지 않고 독립 실행합니다.
+처음 실행할 때 `.env.example`을 `.env`로 복사하고 `POSTGRES_PASSWORD`를 설정합니다.
+기존 `.env`가 있으면 덮어쓰지 마세요.
+
+```bash
+cp -n .env.example .env
+# .env의 POSTGRES_PASSWORD 값을 직접 입력한 다음 실행
+docker compose up -d --wait
+docker compose ps
+```
+
+접속 주소는 `localhost:15432`, DB와 사용자는 `finaccess`입니다.
+종료는 `docker compose stop`을 사용합니다. 비밀번호는 Git에 커밋하지 않습니다.
+
+[03. PostgreSQL·컨테이너·볼륨 설명](docs/03-local-postgresql.md)
