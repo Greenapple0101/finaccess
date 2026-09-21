@@ -63,3 +63,8 @@ Gradle Wrapper가 생성한 gradlew와 wrapper 파일은 지금 읽지 않아도
 `assertThat(...).isEqualTo(...)`는 두 값이 같아야 한다는 검증,
 `assertThatThrownBy(...)`는 예외 발생을 기대하는 검증입니다.
 테스트 코드의 데이터는 별도 컨테이너 DB에서 사용되며 개발용 DB와 분리됩니다.
+
+## 이어서: 계좌 모델
+
+[계좌 모델을 만든 순서](11-account-model.md)에 따라 V3 SQL → Account → AccountRepository → 테스트를 읽어보세요.
+아직 입출금 코드는 없고 초기 0원 잔액의 저장만 다룹니다.
