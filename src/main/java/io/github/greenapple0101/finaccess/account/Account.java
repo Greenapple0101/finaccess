@@ -15,7 +15,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 // [만든 순서 2] V3 SQL로 정의한 accounts 테이블에 Java 객체를 연결합니다.
-// 이번에는 저장 모델만 만듭니다. 계좌 개설 API와 입출금 처리는 후속 단계입니다.
+// 계좌 개설은 AccountService에서 이 객체를 생성해 저장합니다. 입출금 처리는 후속 단계입니다.
 @Entity
 @Table(name = "accounts")
 public class Account {

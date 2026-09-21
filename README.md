@@ -144,6 +144,13 @@ docker compose ps
 ## 모의 원화 계좌 모델
 
 계좌는 회사 한 곳에 소속되며 0원으로 시작합니다. 잔액은 원 단위 정수이고 DB가 음수를 거부합니다.
-현재는 모델·저장소까지 구현했으며 계좌 개설 API와 입출금은 다음 단계입니다.
+모델·저장소와 계좌 개설 API를 구현했습니다. 입출금은 다음 단계입니다.
 
 - [11. 계좌 모델을 만든 순서](docs/11-account-model.md)
+
+## 계좌 개설 API
+
+`POST /api/companies/{companyId}/accounts`는 본문 없이 호출하며, 201과 계좌 id·companyId·balanceWon(0)을 반환합니다.
+없는 회사는 404, 잘못된 UUID는 400입니다. 현재 회사별 권한 검사는 없습니다.
+
+- [12. 계좌 개설 API를 만든 순서](docs/12-open-account.md)

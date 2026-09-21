@@ -236,4 +236,65 @@ class FinaccessApplicationTests {
         mockMvc.perform(get("/api/companies/not-a-uuid"))
                 .andExpect(status().isBadRequest());
     }
+
+    @Autowired
+    io.github.greenapple0101.finaccess.account.AccountRepository accountRepository;
+
+    // [만든 순서 3] API 응답뿐 아니라 커밋된 계좌의 회사와 잔액도 SQL로 확인합니다.
+    // 테스트 트랜잭션을 사용하지 않아 Service 자체의 커밋이 완료되어야 조회됩니다.
+    @Test
+    void opensZeroBalanceAccountForCompany() throws Exception {
+        Company company = companyRepository.saveAndFlush(new Company("계좌 개설 회사"));
+        try {
+            String response = mockMvc.perform(post("/api/companies/{companyId}/accounts", company.getId()))
+                    .andExpect(status().isCreated())
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.companyId").value(company.getId().toString()))
+                    .andExpect(jsonPath("$.balanceWon").value(0))
+                    .andReturn().getResponse().getContentAsString();
+            var opened = objectMapper.readValue(response,
+                    io.github.greenapple0101.finaccess.account.AccountService.OpenedAccount.class);
+            assertThat(opened.id()).isNotNull();
+            assertThat(jdbcTemplate.queryForObject("SELECT company_id FROM accounts WHERE id = ?",
+                    UUID.class, opened.id())).isEqualTo(company.getId());
+            assertThat(jdbcTemplate.queryForObject("SELECT balance_won FROM accounts WHERE id = ?",
+                    Long.class, opened.id())).isZero();
+
+            // 잔액을 본문에 적더라도 API는 이를 입력으로 사용하지 않습니다.
+            // 두 번째 개설 요청은 별도 계좌를 만들며 0원으로 시작합니다.
+            String secondResponse = mockMvc.perform(post("/api/companies/{companyId}/accounts", company.getId())
+                            .contentType(MediaType.APPLICATION_JSON).content("{\"balanceWon\":99999}"))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.balanceWon").value(0))
+                    .andReturn().getResponse().getContentAsString();
+            var second = objectMapper.readValue(secondResponse,
+                    io.github.greenapple0101.finaccess.account.AccountService.OpenedAccount.class);
+            assertThat(second.id()).isNotEqualTo(opened.id());
+            assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM accounts WHERE company_id = ?",
+                    Long.class, company.getId())).isEqualTo(2L);
+        } finally {
+            // 외래키 때문에 계좌를 먼저 제거하고 회사를 정리합니다.
+            jdbcTemplate.update("DELETE FROM accounts WHERE company_id = ?", company.getId());
+            companyRepository.deleteById(company.getId());
+        }
+    }
+
+    @Test
+    void missingCompanyCannotOpenAccount() throws Exception {
+        long before = accountRepository.count();
+        UUID missing = UUID.randomUUID();
+        mockMvc.perform(post("/api/companies/{companyId}/accounts", missing))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.detail").value("Company not found: " + missing));
+        assertThat(accountRepository.count()).isEqualTo(before);
+    }
+
+    @Test
+    void invalidCompanyIdCannotOpenAccount() throws Exception {
+        long before = accountRepository.count();
+        mockMvc.perform(post("/api/companies/not-a-uuid/accounts"))
+                .andExpect(status().isBadRequest());
+        assertThat(accountRepository.count()).isEqualTo(before);
+    }
 }
