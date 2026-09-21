@@ -55,7 +55,7 @@ WebClient·WebFlux는 외부 은행 연동의 필요와 학습 목적에 맞춰 
 
 ## 현재 상태
 
-Spring Boot 최소 애플리케이션과 첫 HTTP API를 구성했습니다. 업무 기능과 인증은 이후 단계에서 추가합니다.
+Spring Boot 첫 HTTP API, PostgreSQL 연결, Flyway 회사 테이블 마이그레이션을 구성했습니다. 업무 기능과 인증은 이후 단계에서 추가합니다.
 
 ## 개발 환경과 실행
 
@@ -111,3 +111,6 @@ docker compose ps
 종료는 `docker compose stop`을 사용합니다. 비밀번호는 Git에 커밋하지 않습니다.
 
 [03. PostgreSQL·컨테이너·볼륨 설명](docs/03-local-postgresql.md)
+
+- [04. Spring과 DB 연결](docs/04-database-connection.md)
+- [05. Flyway와 첫 회사 테이블](docs/05-first-migration.md)
