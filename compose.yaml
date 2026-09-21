@@ -1,16 +1,23 @@
+# Docker Compose는 아래 서비스·네트워크·볼륨을 하나의 프로젝트로 관리합니다.
 name: finaccess
 
 services:
   postgres:
+    # 공식 PostgreSQL 이미지의 버전을 고정합니다.
     image: postgres:17.11-bookworm
+    # 빈 데이터 디렉터리를 처음 초기화할 때 적용되는 DB 설정입니다.
     environment:
       POSTGRES_DB: finaccess
       POSTGRES_USER: finaccess
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    # 호스트의 15432를 컨테이너 내부 5432에 연결합니다. 로컬 주소에만 바인딩합니다.
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-15432}:5432"
+    # 데이터는 이름 있는 볼륨에 두므로 컨테이너 재생성 후에도 유지됩니다.
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    # 실행 중인지뿐 아니라 DB가 연결을 받을 준비가 됐는지 확인합니다.
+    # 비밀번호 인증이나 업무 쿼리 성공까지 검증하는 검사는 아닙니다.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U finaccess -d finaccess"]
       interval: 5s

@@ -1,34 +1,52 @@
+// Gradle은 의존성 다운로드, 컴파일, 테스트, 실행 파일 생성을 담당합니다.
+// plugins는 이 빌드에서 사용할 기능을 켭니다.
 plugins {
 	id 'java'
 	id 'org.springframework.boot' version '4.1.1'
 	id 'io.spring.dependency-management' version '1.1.7'
 }
 
+// 배포 산출물의 식별 정보입니다. Java 패키지 선언을 자동 변경하지는 않습니다.
 group = 'io.github.greenapple0101'
 version = '0.0.1-SNAPSHOT'
 
+// 팀원마다 다른 Java 버전을 쓰지 않도록 Java 21 도구 체인을 지정합니다.
 java {
 	toolchain {
 		languageVersion = JavaLanguageVersion.of(21)
 	}
 }
 
+// 라이브러리를 다운로드할 저장소입니다.
 repositories {
 	mavenCentral()
 }
 
+// implementation: 앱 컴파일·실행에 필요, runtimeOnly: 실행 시 필요.
+// testImplementation/testRuntimeOnly: 테스트에서만 사용하는 의존성입니다.
+// 각 라이브러리 버전은 Spring Boot의 의존성 관리에 맡깁니다.
 dependencies {
+	// HTTP 요청을 Controller로 연결하고 응답을 변환하는 Spring MVC
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	// 객체를 DB에 매핑하는 JPA·Hibernate와 JDBC 연결 기반
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	// 버전별 SQL 마이그레이션 실행
 	implementation 'org.springframework.boot:spring-boot-starter-flyway'
+	// PostgreSQL JDBC 드라이버
 	runtimeOnly 'org.postgresql:postgresql'
+	// Flyway의 PostgreSQL 지원 모듈
 	runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+	// MockMvc 등 웹 계층 테스트 지원
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	// JUnit 테스트 실행기
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	// JUnit과 테스트 컨테이너 생명주기 연결
 	testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+	// 테스트용 실제 PostgreSQL 컨테이너
 	testImplementation 'org.testcontainers:testcontainers-postgresql'
 }
 
+// JUnit Platform으로 테스트를 실행합니다. ./gradlew test 명령과 연결됩니다.
 tasks.named('test') {
 	useJUnitPlatform()
 }
