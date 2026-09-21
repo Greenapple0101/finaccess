@@ -8,6 +8,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.http.MediaType;
 import tools.jackson.databind.ObjectMapper;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -159,5 +160,42 @@ class FinaccessApplicationTests {
         mockMvc.perform(post("/api/companies").contentType(MediaType.APPLICATION_JSON).content("{"))
                 .andExpect(status().isBadRequest());
         assertThat(companyRepository.count()).isEqualTo(before);
+    }
+
+    @Test
+    void retrievesCommittedCompanyWithCreationTime() throws Exception {
+        Company saved = companyRepository.saveAndFlush(new Company("조회 테스트 회사"));
+        try {
+            String response = mockMvc.perform(get("/api/companies/{id}", saved.getId()))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.id").value(saved.getId().toString()))
+                    .andExpect(jsonPath("$.name").value("조회 테스트 회사"))
+                    .andExpect(jsonPath("$.createdAt").isString())
+                    .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+            var details = objectMapper.readValue(response,
+                    io.github.greenapple0101.finaccess.company.CompanyService.CompanyDetails.class);
+            var persistedTime = jdbcTemplate.queryForObject(
+                    "SELECT created_at FROM companies WHERE id = ?", java.time.OffsetDateTime.class, saved.getId());
+            assertThat(details.createdAt()).isEqualTo(persistedTime.toInstant());
+        } finally {
+            companyRepository.deleteById(saved.getId());
+        }
+    }
+
+    @Test
+    void missingCompanyReturnsNotFound() throws Exception {
+        UUID id = UUID.randomUUID();
+        mockMvc.perform(get("/api/companies/{id}", id))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.detail").value("Company not found: " + id));
+    }
+
+    @Test
+    void malformedCompanyIdReturnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/companies/not-a-uuid"))
+                .andExpect(status().isBadRequest());
     }
 }
