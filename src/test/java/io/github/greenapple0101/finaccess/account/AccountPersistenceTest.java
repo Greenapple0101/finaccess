@@ -93,4 +93,19 @@ class AccountPersistenceTest {
         jdbc.update("INSERT INTO accounts (id, company_id) VALUES (?, ?)", id, company.getId());
         assertThat(accounts.findById(id).orElseThrow().getBalanceWon()).isZero();
     }
+
+    // 관리 중인 엔티티를 수정하면 다시 save하지 않아도 flush 시 UPDATE가 실행됩니다.
+    // clear 뒤 재조회하여 메모리뿐 아니라 DB 값이 바뀌었는지 확인합니다.
+    // 이 테스트의 트랜잭션은 끝나면 롤백됩니다.
+    @Test
+    void dirtyCheckingPersistsBalanceChanges() {
+        Company company = companies.saveAndFlush(new Company("잔액 테스트 회사"));
+        Account account = accounts.saveAndFlush(new Account(company));
+        UUID id = account.getId();
+        account.deposit(1000L);
+        account.withdraw(300L);
+        entityManager.flush();
+        entityManager.clear();
+        assertThat(accounts.findById(id).orElseThrow().getBalanceWon()).isEqualTo(700L);
+    }
 }

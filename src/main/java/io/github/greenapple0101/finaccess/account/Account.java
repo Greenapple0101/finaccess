@@ -15,7 +15,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 // [만든 순서 2] V3 SQL로 정의한 accounts 테이블에 Java 객체를 연결합니다.
-// 계좌 개설은 AccountService에서 이 객체를 생성해 저장합니다. 입출금 처리는 후속 단계입니다.
+// 계좌 개설은 AccountService에서 이 객체를 생성해 저장합니다. 입출금 규칙은 아래 메서드로 제공하며 외부 API는 아직 없습니다.
 @Entity
 @Table(name = "accounts")
 public class Account {
@@ -50,7 +50,7 @@ public class Account {
 
     // 계좌를 새로 만들 때 초기 잔액을 외부에서 받지 않고 반드시 0원으로 시작합니다.
     // 잔액을 자유롭게 덮어쓰는 setter는 만들지 않습니다.
-    // 향후 입출금 메서드에서 금액 검증·잔액 부족·정수 범위 초과를 명시적으로 처리합니다.
+    // 입출금 메서드에서만 잔액을 변경하며 검증 실패 시 기존 값을 유지합니다.
     public Account(Company company) {
         if (company == null) {
             throw new IllegalArgumentException("Company must be provided");
@@ -58,6 +58,37 @@ public class Account {
         this.company = company;
         this.balanceWon = 0L;
     }
+
+    // [이번 단계 1] 입금 금액은 양수여야 합니다. 0원과 음수를 먼저 거부합니다.
+    // 일반 + 연산은 long 범위를 넘으면 값이 잘못 돌아갈 수 있습니다(오버플로).
+    // Math.addExact는 범위 초과 시 ArithmeticException을 던집니다.
+    // 오른쪽 계산이 성공한 뒤에만 대입되므로 예외가 나면 원래 잔액이 유지됩니다.
+    public void deposit(long amountWon) {
+        requirePositiveAmount(amountWon);
+        balanceWon = Math.addExact(balanceWon, amountWon);
+    }
+
+    // [이번 단계 2] 출금은 양수이면서 현재 잔액 이하인 경우에만 허용합니다.
+    // 검사 후 차감하므로 실패한 요청이 잔액을 일부 변경하지 않습니다.
+    // 0 <= balanceWon이고 0 < amountWon <= balanceWon이므로 뺄셈 결과는 음수가 되지 않습니다.
+    public void withdraw(long amountWon) {
+        requirePositiveAmount(amountWon);
+        if (amountWon > balanceWon) {
+            throw new InsufficientBalanceException();
+        }
+        balanceWon -= amountWon;
+    }
+
+    // 입금과 출금이 공유하는 입력 규칙입니다. private이라 외부에서 직접 호출하지 않습니다.
+    private static void requirePositiveAmount(long amountWon) {
+        if (amountWon <= 0) {
+            throw new IllegalArgumentException("Amount must be positive");
+        }
+    }
+
+    // 위 메서드는 객체 상태만 변경합니다. 새 객체라면 별도 저장이 필요하고,
+    // 트랜잭션 안에서 조회한 관리 엔티티라면 JPA 변경 감지로 DB에 반영할 수 있습니다.
+    // 동시 요청의 충돌, 이체 원자성, 거래 이력은 이 메서드만으로 해결되지 않습니다.
 
     // getter는 현재 값을 읽기만 합니다. 입출금이나 저장을 수행하는 메서드가 아닙니다.
     public UUID getId() { return id; }
