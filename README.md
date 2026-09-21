@@ -55,7 +55,7 @@ WebClient·WebFlux는 외부 은행 연동의 필요와 학습 목적에 맞춰 
 
 ## 현재 상태
 
-Spring Boot 첫 HTTP API, PostgreSQL 연결, Flyway 회사 테이블 마이그레이션, Company JPA 저장·조회를 구성했습니다. 업무 기능과 인증은 이후 단계에서 추가합니다.
+Spring Boot 첫 HTTP API, PostgreSQL 연결, Flyway 회사 테이블 마이그레이션, Company JPA 저장·조회와 회사 등록 API를 구성했습니다. 업무 기능과 인증은 이후 단계에서 추가합니다.
 
 ## 개발 환경과 실행
 
@@ -116,3 +116,11 @@ docker compose ps
 - [05. Flyway와 첫 회사 테이블](docs/05-first-migration.md)
 
 - [06. Company 엔티티와 JPA 저장소](docs/06-company-jpa.md)
+
+- [07. 회사 등록 API와 계층의 역할](docs/07-register-company.md)
+
+## 회사 등록 API
+
+`POST /api/companies`에 `{"name":"핀액세스 데모"}`를 보내면 HTTP 201과 회사 id·name을 반환합니다.
+잘못된 이름은 400으로 거부합니다. 아직 인증 도입 전의 로컬 학습용 API입니다.
+실행·요청 예시와 테스트 설명은 위 07 문서를 확인하세요.

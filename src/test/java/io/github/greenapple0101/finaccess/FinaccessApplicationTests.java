@@ -1,6 +1,16 @@
 package io.github.greenapple0101.finaccess;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.http.MediaType;
+import tools.jackson.databind.ObjectMapper;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import jakarta.persistence.EntityManager;
 import io.github.greenapple0101.finaccess.company.Company;
 import io.github.greenapple0101.finaccess.company.CompanyRepository;
@@ -19,6 +29,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
+@AutoConfigureMockMvc
 @Testcontainers
 class FinaccessApplicationTests {
 
@@ -92,5 +103,61 @@ class FinaccessApplicationTests {
     @Transactional
     void missingCompanyReturnsEmpty() {
         assertThat(companyRepository.findById(UUID.randomUUID())).isEmpty();
+    }
+
+    @Autowired
+    MockMvc mockMvc;
+
+    @Autowired
+    ObjectMapper objectMapper;
+
+    @Test
+    void registrationCommitsCompanyAndReturnsCreated() throws Exception {
+        String response = mockMvc.perform(post("/api/companies")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"등록 테스트 회사\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.name").value("등록 테스트 회사"))
+                .andExpect(jsonPath("$.id").isString())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        UUID id = objectMapper.readValue(response,
+                io.github.greenapple0101.finaccess.company.CompanyService.RegisteredCompany.class).id();
+        try {
+            assertThat(jdbcTemplate.queryForObject(
+                    "SELECT name FROM companies WHERE id = ?", String.class, id)).isEqualTo("등록 테스트 회사");
+        } finally {
+            companyRepository.deleteById(id);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"name\":null}", "{\"name\":\"\"}", "{\"name\":\"   \"}"})
+    void invalidRegistrationDoesNotStoreCompany(String body) throws Exception {
+        long before = companyRepository.count();
+        mockMvc.perform(post("/api/companies").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.detail").value("Company name must not be blank"));
+        assertThat(companyRepository.count()).isEqualTo(before);
+    }
+
+    @Test
+    void overlongNameIsRejectedWithoutSaving() throws Exception {
+        long before = companyRepository.count();
+        String body = objectMapper.writeValueAsString(java.util.Map.of("name", "가".repeat(101)));
+        mockMvc.perform(post("/api/companies").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Company name must not exceed 100 characters"));
+        assertThat(companyRepository.count()).isEqualTo(before);
+    }
+
+    @Test
+    void malformedJsonIsRejectedWithoutSaving() throws Exception {
+        long before = companyRepository.count();
+        mockMvc.perform(post("/api/companies").contentType(MediaType.APPLICATION_JSON).content("{"))
+                .andExpect(status().isBadRequest());
+        assertThat(companyRepository.count()).isEqualTo(before);
     }
 }
