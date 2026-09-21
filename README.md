@@ -62,15 +62,15 @@ Spring Boot 최소 애플리케이션과 첫 HTTP API를 구성했습니다. 업
 - Java 21
 - Spring Boot 4.1.1
 - Gradle Wrapper 사용: Gradle을 별도로 설치할 필요가 없습니다.
-- 첫 Hello API 실행에는 DB가 필요하지 않습니다. 로컬 DB 학습에는 Docker Compose를 사용합니다.
+- 앱 실행에는 PostgreSQL이 필요합니다. 테스트는 Docker에서 별도 PostgreSQL을 자동으로 실행합니다.
 
 ```bash
 ./gradlew test
-./gradlew bootRun
+./gradlew bootRun --args='--spring.profiles.active=local'
 ```
 
 기본 포트는 8080입니다. 종료는 실행 터미널에서 `Ctrl+C`를 누릅니다.
-포트가 사용 중이면 `./gradlew bootRun --args='--server.port=8081'`로 변경할 수 있습니다.
+포트가 사용 중이면 `./gradlew bootRun --args='--spring.profiles.active=local --server.port=8081'`로 변경할 수 있습니다.
 
 실행 가능한 JAR 파일은 `./gradlew bootJar`로 생성합니다.
 
@@ -96,7 +96,7 @@ HTTP 200과 JSON `{"message":"Hello, FinAccess!"}`을 반환합니다.
 
 ## 로컬 PostgreSQL
 
-PostgreSQL은 현재 Spring과 연결하지 않고 독립 실행합니다.
+Spring은 local 프로필에서 로컬 PostgreSQL에 연결합니다. 먼저 아래 DB 준비를 완료하세요.
 처음 실행할 때 `.env.example`을 `.env`로 복사하고 `POSTGRES_PASSWORD`를 설정합니다.
 기존 `.env`가 있으면 덮어쓰지 마세요.
 
