@@ -1,6 +1,9 @@
 package io.github.greenapple0101.finaccess;
 
 import org.junit.jupiter.api.Test;
+import jakarta.persistence.EntityManager;
+import io.github.greenapple0101.finaccess.company.Company;
+import io.github.greenapple0101.finaccess.company.CompanyRepository;
 import org.flywaydb.core.Flyway;
 import java.util.UUID;
 import org.springframework.transaction.annotation.Transactional;
@@ -61,5 +64,33 @@ class FinaccessApplicationTests {
                 "SELECT count(*) FROM flyway_schema_history WHERE version = '1' AND success", Integer.class))
                 .isEqualTo(1);
         assertThat(flyway.migrate().migrationsExecuted).isZero();
+    }
+
+    @Autowired
+    CompanyRepository companyRepository;
+
+    @Autowired
+    EntityManager entityManager;
+
+    @Test
+    @Transactional
+    void savesAndReloadsCompanyFromDatabase() {
+        Company saved = companyRepository.saveAndFlush(new Company("테스트 회사"));
+        UUID id = saved.getId();
+        assertThat(id).isNotNull();
+
+        // Discard managed objects so findById must read the database.
+        entityManager.clear();
+        Company reloaded = companyRepository.findById(id).orElseThrow();
+
+        assertThat(reloaded).isNotSameAs(saved);
+        assertThat(reloaded.getName()).isEqualTo("테스트 회사");
+        assertThat(reloaded.getCreatedAt()).isNotNull();
+    }
+
+    @Test
+    @Transactional
+    void missingCompanyReturnsEmpty() {
+        assertThat(companyRepository.findById(UUID.randomUUID())).isEmpty();
     }
 }

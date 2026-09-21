@@ -55,7 +55,7 @@ WebClient·WebFlux는 외부 은행 연동의 필요와 학습 목적에 맞춰 
 
 ## 현재 상태
 
-Spring Boot 첫 HTTP API, PostgreSQL 연결, Flyway 회사 테이블 마이그레이션을 구성했습니다. 업무 기능과 인증은 이후 단계에서 추가합니다.
+Spring Boot 첫 HTTP API, PostgreSQL 연결, Flyway 회사 테이블 마이그레이션, Company JPA 저장·조회를 구성했습니다. 업무 기능과 인증은 이후 단계에서 추가합니다.
 
 ## 개발 환경과 실행
 
@@ -114,3 +114,5 @@ docker compose ps
 
 - [04. Spring과 DB 연결](docs/04-database-connection.md)
 - [05. Flyway와 첫 회사 테이블](docs/05-first-migration.md)
+
+- [06. Company 엔티티와 JPA 저장소](docs/06-company-jpa.md)
