@@ -1,3 +1,12 @@
+// [이 파일은 Java가 아니라 Gradle의 Groovy 빌드 설정입니다]
+// ./gradlew test: 테스트, ./gradlew bootRun: 앱 실행, ./gradlew bootJar: 실행 JAR 생성.
+// 스타터는 자주 함께 쓰는 라이브러리 묶음입니다. 스타터를 추가했다고 업무 API가 자동 생성되지는 않습니다.
+// Boot의 자동 설정은 라이브러리 존재, 설정값, 이미 등록된 Bean 등 조건을 보고 적용됩니다.
+// implementation은 앱의 컴파일·실행 의존성이고 runtimeOnly는 실행 시 필요한 의존성입니다.
+// 버전을 개별 지정하지 않은 라이브러리는 Boot가 관리하는 호환 버전 조합을 사용합니다.
+// 작은따옴표 안의 group:artifact는 라이브러리 좌표입니다. Java package 이름과는 다른 개념입니다.
+// 중괄호는 Gradle 설정 블록입니다. Java Controller의 중괄호와 같은 실행 문법으로 해석하지 않습니다.
+
 // Gradle은 의존성 다운로드, 컴파일, 테스트, 실행 파일 생성을 담당합니다.
 // plugins는 이 빌드에서 사용할 기능을 켭니다.
 plugins {
