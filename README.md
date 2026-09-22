@@ -57,7 +57,7 @@ WebClient·WebFlux는 외부 은행 연동의 필요와 학습 목적에 맞춰 
 
 ## 현재 상태
 
-Spring Boot 첫 HTTP API, PostgreSQL 연결, Flyway 회사 테이블 마이그레이션, Company JPA 저장·조회와 회사 등록·ID 조회 API를 구성했습니다. 업무 기능과 인증은 이후 단계에서 추가합니다.
+회사 등록·조회 API, 사용자 소속 모델, 계좌 개설 API와 입출금 규칙을 구현했습니다. 이체 상태 전이 규칙도 정의했습니다. 이체 요청 저장·승인 API와 인증은 이후 단계입니다.
 
 ## 개발 환경과 실행
 
@@ -156,3 +156,9 @@ docker compose ps
 - [12. 계좌 개설 API를 만든 순서](docs/12-open-account.md)
 
 - [13. 입출금 규칙과 JPA 변경 감지](docs/13-balance-rules.md)
+
+## 이체 상태 규칙
+
+요청 → 승인 또는 반려, 승인 → 완료 순서를 정의했습니다. 아직 실제 이체 객체나 이체 API에는 연결하지 않았습니다.
+
+- [14. 이체 상태를 만든 순서와 모든 상태 조합 테스트](docs/14-transfer-status.md)

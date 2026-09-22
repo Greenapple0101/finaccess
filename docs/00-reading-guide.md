@@ -98,8 +98,10 @@ Gradle Wrapper가 생성한 gradlew와 wrapper 파일은 지금 읽지 않아도
 ## 이어서: 계좌 모델
 
 [계좌 모델을 만든 순서](11-account-model.md)에 따라 V3 SQL → Account → AccountRepository → 테스트를 읽어보세요.
-아직 입출금 코드는 없고 초기 0원 잔액의 저장만 다룹니다.
+이 문서에서는 초기 0원 잔액의 저장부터 다룹니다. 입출금은 아래 13 문서로 이어집니다.
 
 계좌 저장 모델 다음에는 [계좌 개설 API](12-open-account.md)를 읽어보세요. Service → Controller 순서입니다.
 
 다음은 [입출금 규칙](13-balance-rules.md)입니다. Account 메서드 → 단위 테스트 → DB 변경 감지 테스트 순서입니다.
+
+다음은 [이체 상태를 만든 순서](14-transfer-status.md)입니다. TransferStatus의 값 목록 → transitionTo → 테스트의 상태 표 순서로 읽으세요.
