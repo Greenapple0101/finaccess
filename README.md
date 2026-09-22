@@ -165,6 +165,8 @@ docker compose ps
 
 ## 이체 요청 객체
 
-출금·입금 계좌 ID, 양수 금액, 요청자 ID를 묶는 TransferRequest를 추가했습니다. 동일 계좌 요청을 거부하고 최초 상태를 REQUESTED로 고정합니다. 아직 DB 저장·이체 API·권한 검사와 연결하지 않은 순수 Java 모델입니다.
+출금·입금 계좌 ID, 양수 금액, 요청자 ID를 묶는 TransferRequest를 추가했습니다. 동일 계좌 요청을 거부하고 최초 상태를 REQUESTED로 고정합니다. JPA 저장소와 DB 제약을 연결했으며 저장·재조회를 검증했습니다. 이체 API와 권한 검사는 아직 없습니다.
 
 - [15. 이체 요청 객체를 만든 순서](docs/15-transfer-request-model.md)
+
+- [16. 이체 요청 DB 저장과 재조회](docs/16-transfer-request-persistence.md)

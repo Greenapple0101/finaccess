@@ -107,3 +107,5 @@ Gradle Wrapper가 생성한 gradlew와 wrapper 파일은 지금 읽지 않아도
 다음은 [이체 상태를 만든 순서](14-transfer-status.md)입니다. TransferStatus의 값 목록 → transitionTo → 테스트의 상태 표 순서로 읽으세요.
 
 이어서 [이체 요청 객체](15-transfer-request-model.md)를 읽으세요. 필드 → 생성자 검사 → getter → 테스트 순서입니다. 아직 DB 저장은 하지 않습니다.
+
+다음 [이체 요청 저장](16-transfer-request-persistence.md)에서는 V4 SQL → TransferRequest의 JPA 어노테이션 → Repository → 저장 테스트 순으로 연결합니다.

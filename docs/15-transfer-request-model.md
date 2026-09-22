@@ -58,3 +58,5 @@ private final 필드는 외부 직접 접근과 생성 후 재대입을 제한�
 이번 단계에서 만든 업무 코드 파일은 TransferRequest 하나입니다.
 Controller → Service → Repository를 한꺼번에 만들지 않고,
 이 객체를 다음에 SQL 테이블·JPA 저장소와 연결한 뒤 요청 서비스를 추가합니다.
+
+> 이 문서는 15단계 당시의 순수 Java 모델을 설명합니다. 현재 코드는 [16단계](16-transfer-request-persistence.md)에서 JPA 매핑을 추가했고, final 필드를 제거하고 기본 생성자·요청 ID·생성 시각을 추가했습니다.
