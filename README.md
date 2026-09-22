@@ -170,3 +170,9 @@ docker compose ps
 - [15. 이체 요청 객체를 만든 순서](docs/15-transfer-request-model.md)
 
 - [16. 이체 요청 DB 저장과 재조회](docs/16-transfer-request-persistence.md)
+
+## 이체 요청 서비스
+
+요청자·계좌 존재 여부와 요청자의 회사가 출금 계좌 소유 회사인지 검사한 뒤 저장합니다. 수취 계좌는 다른 회사도 허용합니다. 로그인 신원 검증과 이체 HTTP API는 아직 연결하지 않았습니다.
+
+- [17. 이체 요청 서비스와 트랜잭션](docs/17-transfer-request-service.md)

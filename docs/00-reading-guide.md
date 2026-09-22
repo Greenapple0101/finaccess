@@ -109,3 +109,5 @@ Gradle Wrapper가 생성한 gradlew와 wrapper 파일은 지금 읽지 않아도
 이어서 [이체 요청 객체](15-transfer-request-model.md)를 읽으세요. 필드 → 생성자 검사 → getter → 테스트 순서입니다. 아직 DB 저장은 하지 않습니다.
 
 다음 [이체 요청 저장](16-transfer-request-persistence.md)에서는 V4 SQL → TransferRequest의 JPA 어노테이션 → Repository → 저장 테스트 순으로 연결합니다.
+
+[이체 요청 서비스](17-transfer-request-service.md)는 생성자 주입 → request의 조회·검증·저장 → 결과 record → 서비스 테스트 순으로 읽으세요.
