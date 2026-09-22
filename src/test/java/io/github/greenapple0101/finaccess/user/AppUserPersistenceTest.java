@@ -1,3 +1,33 @@
+// [테스트 파일을 처음 읽는 방법]
+// 이 파일은 운영 요청을 처리하는 코드가 아니라, 기존 코드가 약속을 지키는지 자동 확인하는 코드입니다.
+// ./gradlew test를 실행하면 JUnit이 @Test 또는 @ParameterizedTest 메서드를 찾아 실행합니다.
+// 각 테스트는 준비(객체·데이터) → 실행(메서드·요청) → 검증(기대한 값)의 순서로 읽으세요.
+// 테스트 메서드가 파일에 적힌 순서대로 실행된다고 가정하면 안 됩니다.
+//
+// assertThat(실제값).isEqualTo(기대값): 값이 같아야 성공합니다.
+// isZero/isNotNull/isEmpty 등은 같은 방식으로 기대 조건을 표현합니다.
+// assertThatThrownBy(() -> 호출): 람다를 실행할 때 예외가 발생하는지 확인합니다.
+// 예외를 기대한 테스트에서 그 예외가 나면 테스트는 성공할 수 있습니다.
+// 테스트 실패는 기대 결과와 실제 결과가 다르다는 뜻이며, 전체 프로그램이 잘못됐다는 뜻만은 아닙니다.
+//
+// [이 파일은 통합 테스트]
+// @SpringBootTest는 앱의 Spring 구성을 준비합니다. 단순히 메서드만 new로 호출하는 것보다 넓은 검증입니다.
+// @Testcontainers와 @Container는 별도 PostgreSQL 컨테이너의 시작·종료를 JUnit과 연결합니다.
+// 개발용 Compose DB 대신 새 DB를 사용하므로 Docker가 필요합니다.
+// static final 컨테이너 필드는 이 테스트 클래스에서 공유할 참조를 뜻합니다.
+// @DynamicPropertySource는 컨테이너의 접속 정보를 Spring 설정으로 제공합니다.
+// postgres::getJdbcUrl의 ::는 메서드 참조입니다. 지금 문자열을 넘기는 대신 값을 제공할 함수를 넘깁니다.
+// Spring이 설정값을 필요로 할 때 이 함수를 호출할 수 있습니다.
+// @Autowired는 Spring이 준비한 Bean을 테스트 필드에 넣으라는 표시입니다.
+// 운영 Service는 생성자 주입을 사용하고, 테스트는 간편하게 필드 주입을 사용한 것입니다.
+//
+// EntityManager는 JPA 엔티티를 관리하는 인터페이스입니다.
+// flush는 변경한 SQL을 DB에 반영하고, clear는 관리 중인 객체를 영속성 컨텍스트에서 분리합니다.
+// flush 뒤 clear를 해야 이후 조회가 메모리 객체 재사용만으로 끝나는 일을 피할 수 있습니다.
+// JdbcTemplate은 SQL 실행과 결과 읽기를 도와줍니다. JPA 결과를 SQL로 독립 확인할 때 사용합니다.
+// 테스트의 @Transactional은 기본적으로 종료 시 롤백합니다.
+// @Transactional 없는 테스트에서는 Service/Repository가 커밋한 값을 확인하고 직접 정리합니다.
+
 package io.github.greenapple0101.finaccess.user;
 
 import io.github.greenapple0101.finaccess.company.Company;
@@ -58,6 +88,7 @@ class AppUserPersistenceTest {
         Company company = companies.saveAndFlush(new Company("테스트 회사"));
         AppUser first = users.saveAndFlush(new AppUser(company, ISSUER, "user-1"));
         users.saveAndFlush(new AppUser(company, ISSUER, "user-2"));
+        // 메모리의 관리 객체를 분리합니다. DB 행을 삭제하는 명령은 아닙니다.
         entityManager.clear();
 
         AppUser loaded = users.findByIdentityIssuerAndIdentitySubject(ISSUER, "user-1").orElseThrow();
@@ -88,6 +119,7 @@ class AppUserPersistenceTest {
         Company company = companies.saveAndFlush(new Company("테스트 회사"));
         AppUser first = users.saveAndFlush(new AppUser(company, ISSUER, "user-1"));
         AppUser second = users.saveAndFlush(new AppUser(company, "https://other.example/realms/finaccess", "user-1"));
+        // 메모리의 관리 객체를 분리합니다. DB 행을 삭제하는 명령은 아닙니다.
         entityManager.clear();
 
         assertThat(users.findByIdentityIssuerAndIdentitySubject(ISSUER, "user-1").orElseThrow().getId())

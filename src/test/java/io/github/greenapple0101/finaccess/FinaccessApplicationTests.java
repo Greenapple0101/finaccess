@@ -1,3 +1,50 @@
+// [테스트 파일을 처음 읽는 방법]
+// 이 파일은 운영 요청을 처리하는 코드가 아니라, 기존 코드가 약속을 지키는지 자동 확인하는 코드입니다.
+// ./gradlew test를 실행하면 JUnit이 @Test 또는 @ParameterizedTest 메서드를 찾아 실행합니다.
+// 각 테스트는 준비(객체·데이터) → 실행(메서드·요청) → 검증(기대한 값)의 순서로 읽으세요.
+// 테스트 메서드가 파일에 적힌 순서대로 실행된다고 가정하면 안 됩니다.
+//
+// assertThat(실제값).isEqualTo(기대값): 값이 같아야 성공합니다.
+// isZero/isNotNull/isEmpty 등은 같은 방식으로 기대 조건을 표현합니다.
+// assertThatThrownBy(() -> 호출): 람다를 실행할 때 예외가 발생하는지 확인합니다.
+// 예외를 기대한 테스트에서 그 예외가 나면 테스트는 성공할 수 있습니다.
+// 테스트 실패는 기대 결과와 실제 결과가 다르다는 뜻이며, 전체 프로그램이 잘못됐다는 뜻만은 아닙니다.
+//
+// [이 파일은 통합 테스트]
+// @SpringBootTest는 앱의 Spring 구성을 준비합니다. 단순히 메서드만 new로 호출하는 것보다 넓은 검증입니다.
+// @Testcontainers와 @Container는 별도 PostgreSQL 컨테이너의 시작·종료를 JUnit과 연결합니다.
+// 개발용 Compose DB 대신 새 DB를 사용하므로 Docker가 필요합니다.
+// static final 컨테이너 필드는 이 테스트 클래스에서 공유할 참조를 뜻합니다.
+// @DynamicPropertySource는 컨테이너의 접속 정보를 Spring 설정으로 제공합니다.
+// postgres::getJdbcUrl의 ::는 메서드 참조입니다. 지금 문자열을 넘기는 대신 값을 제공할 함수를 넘깁니다.
+// Spring이 설정값을 필요로 할 때 이 함수를 호출할 수 있습니다.
+// @Autowired는 Spring이 준비한 Bean을 테스트 필드에 넣으라는 표시입니다.
+// 운영 Service는 생성자 주입을 사용하고, 테스트는 간편하게 필드 주입을 사용한 것입니다.
+//
+// EntityManager는 JPA 엔티티를 관리하는 인터페이스입니다.
+// flush는 변경한 SQL을 DB에 반영하고, clear는 관리 중인 객체를 영속성 컨텍스트에서 분리합니다.
+// flush 뒤 clear를 해야 이후 조회가 메모리 객체 재사용만으로 끝나는 일을 피할 수 있습니다.
+// JdbcTemplate은 SQL 실행과 결과 읽기를 도와줍니다. JPA 결과를 SQL로 독립 확인할 때 사용합니다.
+// 테스트의 @Transactional은 기본적으로 종료 시 롤백합니다.
+// @Transactional 없는 테스트에서는 Service/Repository가 커밋한 값을 확인하고 직접 정리합니다.
+//
+// [HTTP 테스트 문법]
+// MockMvc는 실제 네트워크 포트를 열지 않고 Spring MVC 요청 처리를 실행합니다.
+// perform(post/get(...))는 요청 실행, andExpect(...)는 응답 검증입니다.
+// contentType은 보내는 본문의 형식, content는 보내는 문자열입니다.
+// 응답 contentTypeCompatibleWith는 응답의 미디어 타입이 JSON 등에 맞는지 확인합니다.
+// jsonPath("$.name")에서 $는 JSON의 최상위 객체, .name은 그 객체의 name 필드입니다.
+// andReturn은 결과를 가져오며 getResponse/getContentAsString으로 본문을 읽을 수 있습니다.
+// ObjectMapper.readValue는 JSON을 지정한 Java 타입으로 변환합니다.
+// ClassName.class는 그 타입 정보를 넘기는 표현입니다. new로 객체를 만드는 것과 다릅니다.
+// throws Exception은 예외가 밖으로 전달될 수 있다는 메서드 선언이며 예외를 무시하는 명령은 아닙니다.
+// try/finally는 검증 중 실패하더라도 finally의 데이터 정리를 실행하기 위해 사용합니다.
+//
+// @ParameterizedTest는 같은 검증을 여러 입력에 반복합니다.
+// @ValueSource는 반복할 문자열·숫자들을 제공하고, @NullAndEmptySource는 null·빈 값을 제공합니다.
+// 예를 들어 0, -1, Long.MIN_VALUE를 지정하면 각각 별도의 테스트 실행으로 집계됩니다.
+// Long.MAX_VALUE/MIN_VALUE는 long 표현 범위의 끝값이며 실제 서비스 거래 한도는 아닙니다.
+
 package io.github.greenapple0101.finaccess;
 
 import org.junit.jupiter.api.Test;
@@ -61,6 +108,7 @@ class FinaccessApplicationTests {
     @Test
     // SELECT로 현재 DB 이름을 확인합니다. 설정 파일만 검사하는 대신 실제 연결 성공을 검증합니다.
     void connectsToPostgresql() {
+        // queryForObject는 단일 결과를 읽습니다. SQL의 ?에는 뒤 인자가 바인딩됩니다.
         assertThat(jdbcTemplate.queryForObject("SELECT current_database()", String.class))
                 .isEqualTo(postgres.getDatabaseName());
     }
@@ -73,9 +121,11 @@ class FinaccessApplicationTests {
         UUID id = UUID.randomUUID();
         jdbcTemplate.update("INSERT INTO companies (id, name) VALUES (?, ?)", id, "FinAccess Demo");
 
+        // queryForObject는 단일 결과를 읽습니다. SQL의 ?에는 뒤 인자가 바인딩됩니다.
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT name FROM companies WHERE id = ?", String.class, id))
                 .isEqualTo("FinAccess Demo");
+        // queryForObject는 단일 결과를 읽습니다. SQL의 ?에는 뒤 인자가 바인딩됩니다.
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT created_at IS NOT NULL FROM companies WHERE id = ?", Boolean.class, id))
                 .isTrue();
@@ -85,6 +135,7 @@ class FinaccessApplicationTests {
     @Test
     // V1 적용 이력을 확인하고 Flyway를 다시 호출해 중복 실행 건수가 0인지 확인합니다.
     void migrationIsRecordedAndNotAppliedTwice() {
+        // queryForObject는 단일 결과를 읽습니다. SQL의 ?에는 뒤 인자가 바인딩됩니다.
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM flyway_schema_history WHERE version = '1' AND success", Integer.class))
                 .isEqualTo(1);
@@ -110,6 +161,7 @@ class FinaccessApplicationTests {
         assertThat(id).isNotNull();
 
         // Discard managed objects so findById must read the database.
+        // 메모리의 관리 객체를 분리합니다. DB 행을 삭제하는 명령은 아닙니다.
         entityManager.clear();
         Company reloaded = companyRepository.findById(id).orElseThrow();
 
@@ -151,6 +203,7 @@ class FinaccessApplicationTests {
         UUID id = objectMapper.readValue(response,
                 io.github.greenapple0101.finaccess.company.CompanyService.RegisteredCompany.class).id();
         try {
+        // queryForObject는 단일 결과를 읽습니다. SQL의 ?에는 뒤 인자가 바인딩됩니다.
             assertThat(jdbcTemplate.queryForObject(
                     "SELECT name FROM companies WHERE id = ?", String.class, id)).isEqualTo("등록 테스트 회사");
         } finally {
@@ -209,6 +262,7 @@ class FinaccessApplicationTests {
                     .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
             var details = objectMapper.readValue(response,
                     io.github.greenapple0101.finaccess.company.CompanyService.CompanyDetails.class);
+        // queryForObject는 단일 결과를 읽습니다. SQL의 ?에는 뒤 인자가 바인딩됩니다.
             var persistedTime = jdbcTemplate.queryForObject(
                     "SELECT created_at FROM companies WHERE id = ?", java.time.OffsetDateTime.class, saved.getId());
             assertThat(details.createdAt()).isEqualTo(persistedTime.toInstant());
@@ -255,8 +309,10 @@ class FinaccessApplicationTests {
             var opened = objectMapper.readValue(response,
                     io.github.greenapple0101.finaccess.account.AccountService.OpenedAccount.class);
             assertThat(opened.id()).isNotNull();
+        // queryForObject는 단일 결과를 읽습니다. SQL의 ?에는 뒤 인자가 바인딩됩니다.
             assertThat(jdbcTemplate.queryForObject("SELECT company_id FROM accounts WHERE id = ?",
                     UUID.class, opened.id())).isEqualTo(company.getId());
+        // queryForObject는 단일 결과를 읽습니다. SQL의 ?에는 뒤 인자가 바인딩됩니다.
             assertThat(jdbcTemplate.queryForObject("SELECT balance_won FROM accounts WHERE id = ?",
                     Long.class, opened.id())).isZero();
 
@@ -270,6 +326,7 @@ class FinaccessApplicationTests {
             var second = objectMapper.readValue(secondResponse,
                     io.github.greenapple0101.finaccess.account.AccountService.OpenedAccount.class);
             assertThat(second.id()).isNotEqualTo(opened.id());
+        // queryForObject는 단일 결과를 읽습니다. SQL의 ?에는 뒤 인자가 바인딩됩니다.
             assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM accounts WHERE company_id = ?",
                     Long.class, company.getId())).isEqualTo(2L);
         } finally {

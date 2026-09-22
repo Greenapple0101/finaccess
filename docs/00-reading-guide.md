@@ -1,5 +1,36 @@
 # 코드 읽기가 처음이라면
 
+## 주석을 읽는 방법
+
+이제 각 Java 파일 첫머리에 그 파일을 사람 말로 풀어 쓴 설명이 있습니다.
+그 다음 어노테이션·생성자·메서드 옆 주석을 읽으며 실제 실행문을 확인하세요.
+문서에만 설명을 두지 않고 파일 안에서도 실행 흐름과 Java 문법을 따라갈 수 있도록 구성했습니다.
+
+1. FinaccessApplication: main의 문법, Spring 컨테이너, Bean, DI, 자동 설정.
+2. HelloController: 가장 작은 요청·응답과 JSON 변환.
+3. CompanyController → CompanyService → CompanyRepository → Company: 한 요청의 전체 흐름.
+4. AccountController → AccountService → Account: 회사 기능과 비교하며 계좌 개설·입출금 규칙 확인.
+5. AppUser: 인증 신원과 회사 소속의 관계. 아직 로그인 검증은 없다는 경계 확인.
+6. 테스트: 준비 → 실행 → 검증 순서. MockMvc와 실제 PostgreSQL 테스트의 범위 구분.
+
+필요하면 코드에서 등장하는 메서드 이름으로 검색해 다음 파일로 이동하세요.
+예를 들어 Controller의 companyService.register에서 CompanyService의 register로 이동합니다.
+긴 패키지 주소는 코드의 위치이고, record는 전달할 데이터 타입입니다. 둘 다 별도의 실행 서버가 아닙니다.
+
+## 이번 설명에서 정확히 구분한 것
+
+- 컴포넌트 탐색과 Entity·Repository 탐색은 동일한 메커니즘이 아닙니다.
+- Bean 생성과 앱 초기화는 의존 관계에 따라 진행되며 임의의 고정 순서를 외우지 않습니다.
+- 객체 생성, 영속화, flush, commit은 서로 다른 사건입니다.
+- @Transactional은 프록시를 통한 호출에서 적용되며 단순한 Java 메서드 호출과 구분합니다.
+- 회사가 있다는 사실과 그 회사에 접근할 권한이 있다는 사실은 다릅니다.
+
+적용된 Flyway SQL은 체크섬 보존을 위해 변경하지 않았습니다.
+V1·V2는 [SQL 주석 해설](10-sql-commentary.md), V3는 기존 SQL 안의 주석과 [계좌 모델 설명](11-account-model.md)을 읽으면 됩니다.
+
+공식 참고: [Spring 트랜잭션 어노테이션](https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html)
+
+
 처음부터 모든 파일을 읽을 필요는 없습니다. 아래 순서로 하나씩 열어보세요.
 각 소스 파일의 한국어 주석은 문법, Spring의 역할, 실행 시점을 설명합니다.
 
