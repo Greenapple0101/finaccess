@@ -105,3 +105,5 @@ Gradle Wrapper가 생성한 gradlew와 wrapper 파일은 지금 읽지 않아도
 다음은 [입출금 규칙](13-balance-rules.md)입니다. Account 메서드 → 단위 테스트 → DB 변경 감지 테스트 순서입니다.
 
 다음은 [이체 상태를 만든 순서](14-transfer-status.md)입니다. TransferStatus의 값 목록 → transitionTo → 테스트의 상태 표 순서로 읽으세요.
+
+이어서 [이체 요청 객체](15-transfer-request-model.md)를 읽으세요. 필드 → 생성자 검사 → getter → 테스트 순서입니다. 아직 DB 저장은 하지 않습니다.

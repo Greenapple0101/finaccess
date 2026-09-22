@@ -162,3 +162,9 @@ docker compose ps
 요청 → 승인 또는 반려, 승인 → 완료 순서를 정의했습니다. 아직 실제 이체 객체나 이체 API에는 연결하지 않았습니다.
 
 - [14. 이체 상태를 만든 순서와 모든 상태 조합 테스트](docs/14-transfer-status.md)
+
+## 이체 요청 객체
+
+출금·입금 계좌 ID, 양수 금액, 요청자 ID를 묶는 TransferRequest를 추가했습니다. 동일 계좌 요청을 거부하고 최초 상태를 REQUESTED로 고정합니다. 아직 DB 저장·이체 API·권한 검사와 연결하지 않은 순수 Java 모델입니다.
+
+- [15. 이체 요청 객체를 만든 순서](docs/15-transfer-request-model.md)
