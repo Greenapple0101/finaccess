@@ -18,7 +18,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.EnumType;
 
 // @Entity는 "이 객체를 DB에 저장하고 다시 읽을 수 있게 연결한다"는 표시입니다.
-// @Table은 연결할 테이블 이름입니다. 실제 테이블 생성·변경은 Flyway의 V4·V5 SQL이 담당합니다.
+// @Table은 연결할 테이블 이름입니다. 실제 테이블 생성·변경은 Flyway의 V4·V5·V6 SQL이 담당합니다.
 // Spring이 주입하는 Service 객체와 JPA가 저장하는 Entity 객체는 역할이 다릅니다.
 @Entity
 @Table(name = "transfer_requests")

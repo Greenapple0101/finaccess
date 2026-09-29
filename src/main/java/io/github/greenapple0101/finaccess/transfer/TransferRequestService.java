@@ -17,16 +17,16 @@ import java.util.UUID;
 public class TransferRequestService {
     // Repository는 DB에서 값을 찾거나 저장하는 통로입니다. 사용자·계좌·요청별로 통로가 하나씩 있습니다.
     // final은 생성자에서 받은 통로를 나중에 다른 통로로 바꾸지 못하게 합니다.
-    private final AppUserRepository users;
-    private final AccountRepository accounts;
-    private final TransferRequestRepository transfers;
+    private final AppUserRepository userRepository;
+    private final AccountRepository accountRepository;
+    private final TransferRequestRepository transferRepository;
 
     // Spring이 준비한 세 저장소를 생성자로 받습니다. 각 저장소는 같은 애플리케이션 안에서 사용합니다.
-    public TransferRequestService(AppUserRepository users, AccountRepository accounts,
-                                  TransferRequestRepository transfers) {
-        this.users = users;
-        this.accounts = accounts;
-        this.transfers = transfers;
+    public TransferRequestService(AppUserRepository userRepository, AccountRepository accountRepository,
+                                  TransferRequestRepository transferRepository) {
+        this.userRepository = userRepository;
+        this.accountRepository = accountRepository;
+        this.transferRepository = transferRepository;
     }
 
     // 트랜잭션은 DB 작업을 "모두 성공하거나, 실패하면 취소할 한 묶음"으로 다루는 단위입니다.
@@ -40,31 +40,43 @@ public class TransferRequestService {
         // 먼저 요청 객체를 만듭니다. 생성자가 ID 누락·동일 계좌·0원 이하 금액을 거부합니다.
         // 예: 출금·입금 계좌 ID가 같으면 여기서 멈춥니다. 아직 DB에 요청을 저장하지 않았습니다.
         TransferRequest transfer = new TransferRequest(sourceAccountId, destinationAccountId, amountWon, requesterId);
+
         // findById는 "찾았을 수도, 없을 수도 있다"는 결과(Optional)를 돌려줍니다.
         // orElseThrow는 찾았다면 객체를 꺼내고, 없으면 괄호 안 예외를 발생시킵니다.
         // () ->는 "필요해지면 이 예외를 만들어라"라는 짧은 함수 표현입니다.
-        AppUser requester = users.findById(requesterId)
+        AppUser requester = userRepository.findById(requesterId)
                 .orElseThrow(() -> new TransferReferenceNotFoundException("Requester", requesterId));
-        Account source = accounts.findById(sourceAccountId)
+        Account sourceAccount = accountRepository.findById(sourceAccountId)
                 .orElseThrow(() -> new TransferReferenceNotFoundException("Source account", sourceAccountId));
+
         // 요청자의 회사 ID와 출금 계좌의 회사 ID를 비교합니다.
         // equals는 값이 같은지 묻고, 앞의 !는 답을 뒤집습니다. 회사가 다르면 거부합니다.
         // 이름이 같은 회사가 있을 수 있으므로 회사 이름 대신 고유한 ID를 비교합니다.
         // 다만 requesterId는 아직 입력받은 값입니다. 호출자가 실제 그 사람인지는 확인하지 않습니다.
-        if (!requester.getCompany().getId().equals(source.getCompany().getId())) {
+        UUID requesterCompanyId = requester.getCompany().getId();
+        UUID sourceCompanyId = sourceAccount.getCompany().getId();
+        if (!requesterCompanyId.equals(sourceCompanyId)) {
             throw new TransferCompanyMismatchException();
         }
+
         // 입금 계좌는 존재만 확인합니다. 수취인은 다른 회사여도 송금 요청을 받을 수 있습니다.
         // 출금 계좌와 달리 요청자의 회사 소유일 필요는 없습니다.
-        accounts.findById(destinationAccountId)
+        accountRepository.findById(destinationAccountId)
                 .orElseThrow(() -> new TransferReferenceNotFoundException("Destination account", destinationAccountId));
+
         // 검사를 통과한 요청을 저장 대상으로 등록합니다. 잔액은 건드리지 않습니다.
         // 요청 때 잔액이 충분해도 나중에 바뀔 수 있어 실제 잔액 검사는 실행 서비스가 합니다.
-        TransferRequest saved = transfers.save(transfer);
+        TransferRequest savedTransfer = transferRepository.save(transfer);
         // 저장용 객체 전체 대신 호출자에게 필요한 값만 새 묶음으로 만듭니다.
         // 새 트랜잭션을 시작한 호출이라면, Spring의 최종 확정까지 성공해야 Controller에 결과가 돌아갑니다.
-        return new RequestedTransfer(saved.getId(), saved.getSourceAccountId(), saved.getDestinationAccountId(),
-                saved.getAmountWon(), saved.getRequesterId(), saved.getStatus());
+        return new RequestedTransfer(
+                savedTransfer.getId(),
+                savedTransfer.getSourceAccountId(),
+                savedTransfer.getDestinationAccountId(),
+                savedTransfer.getAmountWon(),
+                savedTransfer.getRequesterId(),
+                savedTransfer.getStatus()
+        );
     }
 
     // record는 결과를 전달하는 데이터 묶음입니다. id(), status()처럼 이름으로 값을 꺼냅니다.

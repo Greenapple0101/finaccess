@@ -21,16 +21,16 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController // 반환 객체를 응답 본문(JSON)으로 변환하는 Controller입니다.
 @RequestMapping("/api/transfers") // 이 클래스에서 처리할 공통 주소입니다.
 public class TransferController {
-    // requests는 새 요청을 만드는 담당자, workflow는 만들어진 요청을 처리하는 담당자입니다.
+    // transferRequestService는 새 요청을 만들고, transferWorkflowService는 만들어진 요청을 처리합니다.
     // Controller는 잔액을 직접 고치지 않고 이 두 서비스에 필요한 값을 전달합니다.
-    private final TransferRequestService requests;
-    private final TransferWorkflowService workflow;
+    private final TransferRequestService transferRequestService;
+    private final TransferWorkflowService transferWorkflowService;
 
     // Spring이 미리 준비한 서비스 객체를 아래 생성자로 넘겨줍니다.
     // 필요한 도구를 직접 만드는 대신 밖에서 받는 방식을 '의존성 주입'이라고 합니다.
-    public TransferController(TransferRequestService requests, TransferWorkflowService workflow) {
-        this.requests = requests;
-        this.workflow = workflow;
+    public TransferController(TransferRequestService transferRequestService, TransferWorkflowService transferWorkflowService) {
+        this.transferRequestService = transferRequestService;
+        this.transferWorkflowService = transferWorkflowService;
     }
 
     // @PostMapping은 POST 방식의 요청과 이 메서드를 연결합니다.
@@ -43,34 +43,38 @@ public class TransferController {
         if (body.amountWon() == null) {
             throw new IllegalArgumentException("Amount must be provided");
         }
-        // 본문에서 네 값을 꺼내 서비스에 전달합니다. var는 오른쪽 값에 맞춰 타입을 정하는 문법입니다.
+        // 본문에서 네 값을 꺼내 서비스에 전달합니다. 결과 타입을 적어 무엇을 받는지 바로 볼 수 있게 합니다.
         // 서비스가 오류 없이 끝나면 result에 새 요청의 ID·금액·상태 등이 담깁니다.
-        var result = requests.request(body.sourceAccountId(), body.destinationAccountId(),
-                body.amountWon(), body.requesterId());
+        TransferRequestService.RequestedTransfer result = transferRequestService.request(
+                body.sourceAccountId(),
+                body.destinationAccountId(),
+                body.amountWon(),
+                body.requesterId()
+        );
         // ResponseEntity는 응답의 상태 번호와 본문을 함께 정할 때 씁니다.
         // CREATED는 201입니다. "새 요청을 만들었다"는 뜻이고, 이체를 완료했다는 뜻은 아닙니다.
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 
     // 예: POST /api/transfers/요청ID/approve + {"actorId": "결재자ID"}.
-    // @PathVariable은 주소의 {id}를 꺼냅니다. Spring이 이를 UUID 타입으로 읽어 줍니다.
+    // @PathVariable("id")는 주소의 {id}를 꺼내 transferId에 넣으라는 뜻입니다. Spring이 UUID로 읽습니다.
     // 승인 결과는 그대로 반환하며, 정상 응답은 200과 결과 JSON입니다.
     @PostMapping("/{id}/approve")
-    public TransferWorkflowService.TransferResult approve(@PathVariable UUID id, @RequestBody Actor body) {
-        return workflow.approve(id, body.actorId());
+    public TransferWorkflowService.TransferResult approve(@PathVariable("id") UUID transferId, @RequestBody Actor body) {
+        return transferWorkflowService.approve(transferId, body.actorId());
     }
 
     // 반려도 같은 요청 ID와 결재자 ID를 받습니다. 상태·회사·자기 결재 검사는 서비스와 객체가 합니다.
     @PostMapping("/{id}/reject")
-    public TransferWorkflowService.TransferResult reject(@PathVariable UUID id, @RequestBody Actor body) {
-        return workflow.reject(id, body.actorId());
+    public TransferWorkflowService.TransferResult reject(@PathVariable("id") UUID transferId, @RequestBody Actor body) {
+        return transferWorkflowService.reject(transferId, body.actorId());
     }
 
     // 승인된 요청의 모의 이체를 실행하는 주소입니다.
     // 실제 은행 호출이 아니라 우리 DB 안의 출금 계좌와 입금 계좌 잔액을 바꿉니다.
     @PostMapping("/{id}/execute")
-    public TransferWorkflowService.TransferResult execute(@PathVariable UUID id, @RequestBody Actor body) {
-        return workflow.execute(id, body.actorId());
+    public TransferWorkflowService.TransferResult execute(@PathVariable("id") UUID transferId, @RequestBody Actor body) {
+        return transferWorkflowService.execute(transferId, body.actorId());
     }
 
     // 아래 메서드들은 이 Controller에서 발생한 오류를 HTTP 응답으로 바꾸는 담당자입니다.
@@ -80,11 +84,6 @@ public class TransferController {
     @ExceptionHandler({InsufficientBalanceException.class, TransferExecutionConflictException.class})
     public ProblemDetail executionConflict(RuntimeException error) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, error.getMessage());
-    }
-
-    // record는 전달할 값을 한 묶음으로 정의하는 문법입니다.
-    // 이 묶음은 "이번 행동을 하는 사용자 ID" 하나를 받습니다. 로그인 증명서는 아닙니다.
-    public record Actor(UUID actorId) {
     }
 
     // 자기가 낸 요청을 자기가 승인하거나 반려하려 하면 403(허용하지 않음)입니다.
@@ -97,11 +96,6 @@ public class TransferController {
     @ExceptionHandler(TransferStateConflictException.class)
     public ProblemDetail stateConflict(TransferStateConflictException error) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, error.getMessage());
-    }
-
-    // 새 요청에 필요한 입력만 받습니다. status나 createdAt은 여기서 받지 않습니다.
-    // 따라서 사용자가 "이미 승인됨" 같은 상태를 이 입력 묶음으로 지정할 수 없습니다.
-    public record CreateTransfer(UUID sourceAccountId, UUID destinationAccountId, Long amountWon, UUID requesterId) {
     }
 
     // 금액 누락·동일 계좌 등 잘못된 입력은 400입니다.
@@ -122,5 +116,15 @@ public class TransferController {
     @ExceptionHandler(TransferCompanyMismatchException.class)
     public ProblemDetail wrongCompany(TransferCompanyMismatchException error) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, error.getMessage());
+    }
+
+    // 새 요청에 필요한 입력만 받습니다. status나 createdAt은 여기서 받지 않습니다.
+    // 따라서 사용자가 "이미 승인됨" 같은 상태를 이 입력 묶음으로 지정할 수 없습니다.
+    public record CreateTransfer(UUID sourceAccountId, UUID destinationAccountId, Long amountWon, UUID requesterId) {
+    }
+
+    // record는 전달할 값을 한 묶음으로 정의하는 문법입니다.
+    // 이 묶음은 "이번 행동을 하는 사용자 ID" 하나를 받습니다. 로그인 증명서는 아닙니다.
+    public record Actor(UUID actorId) {
     }
 }

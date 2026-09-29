@@ -28,7 +28,7 @@ PESSIMISTIC_WRITE 조회로 트랜잭션 종료까지 쓰기 잠금을 잡습니
 
 ## flush와 commit의 차이
 
-source.withdraw → accounts.flush로 출금 UPDATE를 먼저 DB에 보냅니다.
+sourceAccount.withdraw → accountRepository.flush로 출금 UPDATE를 먼저 DB에 보냅니다.
 아직 commit 전이므로 입금 실패 시 이 UPDATE도 롤백됩니다.
 학습을 위해 중간 flush를 명시했으며 일반적으로 매 변경마다 flush할 필요는 없습니다.
 입금 후 상태를 완료로 바꾸고, 트랜잭션 commit에서 나머지 변경을 반영합니다.
