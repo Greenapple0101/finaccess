@@ -1,57 +1,45 @@
-// [이 파일의 역할]
-// 이체 업무에는 순서가 있습니다. 요청한 뒤 승인 또는 반려하고, 승인된 건만 완료합니다.
-// 이 파일은 그 상태 이름과 허용되는 이동 순서를 정의합니다. 상태 이동을 '전이'라고 부릅니다.
-// 아직 이체 한 건을 담는 Entity나 HTTP API가 아닙니다. DB 저장과 계좌 입출금도 하지 않습니다.
-// 현재 TransferRequest의 승인·반려·완료 메서드가 이 규칙을 사용합니다.
+// [이 파일은 무엇을 하나요?]
+// 이체의 네 가지 상태 이름과, 어떤 상태에서 다음 상태로 갈 수 있는지 정합니다.
+// 순서: REQUESTED → APPROVED 또는 REJECTED, APPROVED → COMPLETED. 종료된 상태에서는 더 이동하지 않습니다.
+// TransferRequest가 승인·반려·완료할 때 이 규칙을 사용합니다. 상태 변경 순서를 '전이'라고도 부릅니다.
+// 이 파일은 순서만 검사합니다. 사용자 권한 검사, DB 저장, 계좌의 돈 이동은 하지 않습니다.
 package io.github.greenapple0101.finaccess.transfer;
 
-// enum(열거형)은 사용할 수 있는 값을 미리 정해 놓은 Java 타입입니다.
-// 문자열 "approved"를 직접 쓰면 오타가 실행 중에 발견될 수 있지만,
-// TransferStatus.APPROVED처럼 쓰면 존재하지 않는 이름은 컴파일 단계에서 발견됩니다.
-// public은 다른 패키지에서도 이 타입을 사용할 수 있다는 뜻입니다.
-// Spring 어노테이션은 없습니다. 이 규칙은 Spring이나 DB 없이도 실행할 수 있습니다.
+// enum은 쓸 수 있는 값을 아래 목록으로 한정한 타입입니다.
+// 문자열을 직접 적으면 "APROVED"처럼 오타를 내기 쉽지만, enum에 없는 이름은 빌드할 때 잡힙니다.
+// 아래 값은 미리 정해져 있으므로 new로 상태를 만들지 않습니다.
 public enum TransferStatus {
-    // 아래 네 개가 이 타입의 값입니다. new TransferStatus()로 직접 만들지 않습니다.
     REQUESTED, // 이체 요청 접수: 아직 승인되지 않았고 돈도 이동하지 않은 상태.
     APPROVED,  // 승인됨: 실행을 허용받았다는 의미이며, 이체 완료와는 다릅니다.
     REJECTED,  // 반려됨: 이 요청은 종료됩니다. 다시 요청하려면 별도 요청을 만들어야 합니다.
     COMPLETED; // 완료됨: 모의 입출금과 같은 트랜잭션에서 성공 시 기록하는 상태.
-    // 마지막 값 뒤의 세미콜론은 값 목록을 끝내고 아래에 메서드를 선언하기 위해 붙입니다.
 
-    // [메서드 선언 읽기]
-    // public: 외부에서 호출 가능 / TransferStatus: 돌려줄 값의 타입.
-    // transitionTo: 메서드 이름 / 괄호 안 next: 호출자가 전달한 목표 상태.
-    // 예: TransferStatus.REQUESTED.transitionTo(TransferStatus.APPROVED)
-    // 호출 대상 REQUESTED가 현재 상태이고, 인자 APPROVED가 목표 상태입니다.
-    //
-    // 중요: enum 값 자체는 바뀌지 않습니다. 검사에 통과한 next를 반환할 뿐입니다.
-    // 이체 객체가 status = status.transitionTo(next)처럼 반환된 값을 필드에 저장합니다.
-    // 이 메서드는 '누가 승인하는가'를 모릅니다. 자기 승인 금지·회사 권한은 별도 검사입니다.
+    // 예: REQUESTED.transitionTo(APPROVED)는 "요청됨에서 승인됨으로 갈 수 있니?"라는 뜻입니다.
+    // 호출한 값이 현재 상태, 괄호 안 next가 가려는 상태입니다.
+    // 이 메서드는 enum 자체를 바꾸지 않고 허용된 next를 돌려줍니다.
+    // 그래서 요청 객체가 status = status.transitionTo(next)처럼 결과를 다시 저장해야 합니다.
     public TransferStatus transitionTo(TransferStatus next) {
-        // null은 목표 상태를 전달하지 않았다는 뜻입니다. 정상적인 상태 값이 아닙니다.
-        // throw new ...는 예외를 만들어 호출한 쪽으로 알리고 현재 메서드 실행을 중단합니다.
+        // 목표 상태를 빼먹었다면 여기서 중단합니다. null은 다섯 번째 상태가 아니라 값이 없다는 뜻입니다.
         if (next == null) {
             throw new IllegalArgumentException("Target status must be provided");
         }
 
-        // this는 이 메서드를 호출한 현재 enum 값입니다.
-        // switch 식은 현재 값에 맞는 case를 골라 결과를 만듭니다.
-        // boolean은 true/false만 담는 타입이며 allowed는 이동 허용 여부입니다.
-        // enum 값은 ==로 비교합니다. ||는 둘 중 하나라도 참이면 참이라는 뜻입니다.
+        // this는 현재 상태입니다. switch는 그 값에 해당하는 case 한 줄을 골라 결과를 만듭니다.
+        // allowed에는 true(허용) 또는 false(거부)가 들어갑니다.
+        // ||는 "둘 중 하나라도 맞으면 허용"이라는 뜻입니다. enum 값은 ==로 같은지 비교합니다.
         boolean allowed = switch (this) {
             case REQUESTED -> next == APPROVED || next == REJECTED;
             case APPROVED -> next == COMPLETED;
-            // 쉼표로 두 상태를 묶었습니다. 둘 다 끝난 상태이므로 어떤 이동도 허용하지 않습니다.
             case REJECTED, COMPLETED -> false;
         };
 
-        // !는 참/거짓을 뒤집습니다. 허용되지 않았을 때만 이 블록을 실행합니다.
-        // 같은 상태로 다시 이동하는 것도 거부합니다. 중복 요청 처리는 향후 별도 기능입니다.
+        // !는 참과 거짓을 뒤집으므로 "허용되지 않았다면" 이 블록을 실행합니다.
+        // 예: 승인 전 바로 완료하거나, 이미 승인한 요청을 다시 승인하면 오류입니다.
+        // 같은 요청을 반복 호출해도 성공으로 돌려주는 멱등성 처리는 아직 별도 구현하지 않았습니다.
         if (!allowed) {
-            // +는 여기서 문자열을 이어 붙입니다. 현재 상태와 목표 상태를 오류에 남깁니다.
             throw new TransferStateConflictException("Cannot transition from " + this + " to " + next);
         }
-        // return은 결과를 돌려주고 메서드를 종료합니다. DB나 잔액이 바뀌는 명령이 아닙니다.
+        // 순서 검사를 통과한 목표 상태를 반환합니다. 누가 결재하는지는 이 메서드가 알지 못합니다.
         return next;
     }
 }
