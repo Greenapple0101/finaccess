@@ -18,6 +18,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.http.MediaType;
 import tools.jackson.databind.ObjectMapper;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -136,11 +138,12 @@ class FinaccessApplicationTests {
     @Autowired
     ObjectMapper objectMapper;
 
+    // 여기의 jwt()는 검증을 마친 관리자 상황을 만드는 시험 도구입니다. 실제 서명 검증은 JwtSecurityTest가 확인합니다.
     // 회사 등록 요청 → 201(생성 성공) 응답 → DB에 저장된 회사 확인 순서입니다.
     // 응답의 id를 꺼내 DB에서 같은 회사를 찾고, finally에서 시험 데이터를 정리합니다.
     @Test
     void registrationCommitsCompanyAndReturnsCreated() throws Exception {
-        String response = mockMvc.perform(post("/api/companies")
+        String response = mockMvc.perform(post("/api/companies").with(admin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"등록 테스트 회사\"}"))
                 .andExpect(status().isCreated())
@@ -165,7 +168,7 @@ class FinaccessApplicationTests {
     @ValueSource(strings = {"{}", "{\"name\":null}", "{\"name\":\"\"}", "{\"name\":\"   \"}"})
     void invalidRegistrationDoesNotStoreCompany(String body) throws Exception {
         long before = companyRepository.count();
-        mockMvc.perform(post("/api/companies").contentType(MediaType.APPLICATION_JSON).content(body))
+        mockMvc.perform(post("/api/companies").with(admin()).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.detail").value("Company name must not be blank"));
@@ -177,7 +180,7 @@ class FinaccessApplicationTests {
     void overlongNameIsRejectedWithoutSaving() throws Exception {
         long before = companyRepository.count();
         String body = objectMapper.writeValueAsString(java.util.Map.of("name", "가".repeat(101)));
-        mockMvc.perform(post("/api/companies").contentType(MediaType.APPLICATION_JSON).content(body))
+        mockMvc.perform(post("/api/companies").with(admin()).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value("Company name must not exceed 100 characters"));
         assertThat(companyRepository.count()).isEqualTo(before);
@@ -187,7 +190,7 @@ class FinaccessApplicationTests {
     @Test
     void malformedJsonIsRejectedWithoutSaving() throws Exception {
         long before = companyRepository.count();
-        mockMvc.perform(post("/api/companies").contentType(MediaType.APPLICATION_JSON).content("{"))
+        mockMvc.perform(post("/api/companies").with(admin()).contentType(MediaType.APPLICATION_JSON).content("{"))
                 .andExpect(status().isBadRequest());
         assertThat(companyRepository.count()).isEqualTo(before);
     }
@@ -197,7 +200,7 @@ class FinaccessApplicationTests {
     void retrievesCommittedCompanyWithCreationTime() throws Exception {
         Company saved = companyRepository.saveAndFlush(new Company("조회 테스트 회사"));
         try {
-            String response = mockMvc.perform(get("/api/companies/{id}", saved.getId()))
+            String response = mockMvc.perform(get("/api/companies/{id}", saved.getId()).with(admin()))
                     .andExpect(status().isOk())
                     .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.id").value(saved.getId().toString()))
@@ -218,7 +221,7 @@ class FinaccessApplicationTests {
     @Test
     void missingCompanyReturnsNotFound() throws Exception {
         UUID id = UUID.randomUUID();
-        mockMvc.perform(get("/api/companies/{id}", id))
+        mockMvc.perform(get("/api/companies/{id}", id).with(admin()))
                 .andExpect(status().isNotFound())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(404))
@@ -228,7 +231,7 @@ class FinaccessApplicationTests {
     // not-a-uuid는 ID 형식부터 틀렸으므로 400(잘못된 요청)을 기대합니다.
     @Test
     void malformedCompanyIdReturnsBadRequest() throws Exception {
-        mockMvc.perform(get("/api/companies/not-a-uuid"))
+        mockMvc.perform(get("/api/companies/not-a-uuid").with(admin()))
                 .andExpect(status().isBadRequest());
     }
 
@@ -241,7 +244,7 @@ class FinaccessApplicationTests {
     void opensZeroBalanceAccountForCompany() throws Exception {
         Company company = companyRepository.saveAndFlush(new Company("계좌 개설 회사"));
         try {
-            String response = mockMvc.perform(post("/api/companies/{companyId}/accounts", company.getId()))
+            String response = mockMvc.perform(post("/api/companies/{companyId}/accounts", company.getId()).with(admin()))
                     .andExpect(status().isCreated())
                     .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.companyId").value(company.getId().toString()))
@@ -256,7 +259,7 @@ class FinaccessApplicationTests {
                     Long.class, opened.id())).isZero();
 
             // 본문에 99,999원을 적어 보내도 개설 API는 그 금액을 받지 않습니다. 새 계좌는 언제나 0원입니다.
-            String secondResponse = mockMvc.perform(post("/api/companies/{companyId}/accounts", company.getId())
+            String secondResponse = mockMvc.perform(post("/api/companies/{companyId}/accounts", company.getId()).with(admin())
                             .contentType(MediaType.APPLICATION_JSON).content("{\"balanceWon\":99999}"))
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.balanceWon").value(0))
@@ -278,7 +281,7 @@ class FinaccessApplicationTests {
     void missingCompanyCannotOpenAccount() throws Exception {
         long before = accountRepository.count();
         UUID missing = UUID.randomUUID();
-        mockMvc.perform(post("/api/companies/{companyId}/accounts", missing))
+        mockMvc.perform(post("/api/companies/{companyId}/accounts", missing).with(admin()))
                 .andExpect(status().isNotFound())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.detail").value("Company not found: " + missing));
@@ -289,8 +292,11 @@ class FinaccessApplicationTests {
     @Test
     void invalidCompanyIdCannotOpenAccount() throws Exception {
         long before = accountRepository.count();
-        mockMvc.perform(post("/api/companies/not-a-uuid/accounts"))
+        mockMvc.perform(post("/api/companies/not-a-uuid/accounts").with(admin()))
                 .andExpect(status().isBadRequest());
         assertThat(accountRepository.count()).isEqualTo(before);
+    }
+    private org.springframework.test.web.servlet.request.RequestPostProcessor admin() {
+        return jwt().authorities(new SimpleGrantedAuthority("ROLE_admin"));
     }
 }

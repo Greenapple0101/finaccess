@@ -52,7 +52,8 @@ public class TransferRequestService {
         // 요청자의 회사 ID와 출금 계좌의 회사 ID를 비교합니다.
         // equals는 값이 같은지 묻고, 앞의 !는 답을 뒤집습니다. 회사가 다르면 거부합니다.
         // 이름이 같은 회사가 있을 수 있으므로 회사 이름 대신 고유한 ID를 비교합니다.
-        // 다만 requesterId는 아직 입력받은 값입니다. 호출자가 실제 그 사람인지는 확인하지 않습니다.
+        // HTTP 요청에서 requesterId는 Controller가 검증된 토큰으로 정합니다.
+        // 이 서비스는 토큰 원문을 다루지 않고 해당 업무 사용자의 회사 소속을 확인합니다.
         UUID requesterCompanyId = requester.getCompany().getId();
         UUID sourceCompanyId = sourceAccount.getCompany().getId();
         if (!requesterCompanyId.equals(sourceCompanyId)) {

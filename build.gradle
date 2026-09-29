@@ -35,6 +35,8 @@ repositories {
 dependencies {
 	// 웹 요청을 Java 메서드로 연결하고 JSON 응답을 보내는 기능입니다.
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	// Bearer 토큰의 서명·발급자·만료 시간 검사와 URL별 권한 검사를 준비합니다.
+	implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server'
 	// Java 객체를 DB 데이터와 연결하고 저장·조회하는 기능입니다.
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	// V1, V2 같은 SQL 파일을 순서대로 한 번씩 적용하고 기록합니다.
@@ -45,6 +47,7 @@ dependencies {
 	runtimeOnly 'org.flywaydb:flyway-database-postgresql'
 	// HTTP 응답을 자동으로 검사하는 MockMvc 등의 테스트 도구입니다.
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	testImplementation 'org.springframework.security:spring-security-test'
 	// JUnit 테스트를 찾아 실행할 때 필요한 도구입니다.
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	// 테스트 시작·종료에 맞춰 컨테이너도 준비하고 정리합니다.

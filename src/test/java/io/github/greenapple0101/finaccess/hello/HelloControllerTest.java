@@ -7,6 +7,8 @@
 package io.github.greenapple0101.finaccess.hello;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.Import;
+import io.github.greenapple0101.finaccess.security.SecurityConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
@@ -18,6 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 // HelloController의 요청 처리에 필요한 Spring 설정만 준비하라는 표시입니다.
 @WebMvcTest(HelloController.class)
+@Import(SecurityConfig.class)
 class HelloControllerTest {
 
     // Spring이 준비한 MockMvc를 아래 변수에 넣어 줍니다. 직접 new로 만들 필요가 없습니다.

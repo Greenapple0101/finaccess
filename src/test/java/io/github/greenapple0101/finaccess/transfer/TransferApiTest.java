@@ -6,7 +6,8 @@
 // Spring과 테스트 전용 PostgreSQL을 함께 켜므로 Docker가 필요합니다. 개발용 DB는 사용하지 않습니다.
 // 이 클래스에는 @Transactional을 붙이지 않았습니다. 서비스의 저장 확정(커밋)을 끝까지 확인하려는 것입니다.
 // 실패 뒤 별도로 DB를 조회하여, 변경을 되돌리는 '롤백'이 실제로 되었는지도 확인합니다.
-// actorId는 시험에서 전달하는 사용자 ID입니다. 이 시험이 로그인 인증이나 역할 검증까지 보장하지는 않습니다.
+// HTTP 시험은 검증된 JWT 상황을 jwt()로 준비합니다. 실제 서명 검증은 별도 JwtSecurityTest가 확인합니다.
+// 서비스 직접 호출 시험은 기존의 동시성·롤백 규칙을 그대로 검증합니다.
 
 package io.github.greenapple0101.finaccess.transfer;
 
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -48,6 +50,10 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -139,9 +145,9 @@ class TransferApiTest {
     void fullHttpFlowMovesMoneyOnce() throws Exception {
         setBalance(sourceAccountId, 1500L);
         setBalance(destinationAccountId, 200L);
-        String responseJson = mockMvc.perform(post("/api/transfers")
+        String responseJson = mockMvc.perform(post("/api/transfers").with(asUser(requesterId, "user"))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(requestBody(sourceAccountId, destinationAccountId, "1000", requesterId)))
+                .content(requestBody(sourceAccountId, destinationAccountId, "1000")))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         // 응답 JSON 글을 Java 결과 객체로 바꾸고, 방금 생성된 요청 ID를 꺼내 다음 URL에 씁니다.
@@ -151,12 +157,12 @@ class TransferApiTest {
         UUID actorId = createReviewer();
         mockMvc.perform(post("/api/transfers/" + transferId + "/approve")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(actorBody(actorId)))
+                .with(asUser(actorId, "approver")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("APPROVED"));
         mockMvc.perform(post("/api/transfers/" + transferId + "/execute")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(actorBody(actorId)))
+                .with(asUser(actorId, "approver")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.executedBy").value(actorId.toString()))
@@ -168,7 +174,7 @@ class TransferApiTest {
         assertThat(savedTransfer.getCompletedAt()).isNotNull();
         mockMvc.perform(post("/api/transfers/" + transferId + "/execute")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(actorBody(actorId)))
+                .with(asUser(actorId, "approver")))
                 .andExpect(status().isConflict());
         assertBalances(500L, 1200L);
     }
@@ -184,7 +190,7 @@ class TransferApiTest {
         }
         mockMvc.perform(post("/api/transfers/" + transferId + "/execute")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(actorBody(actorId)))
+                .with(asUser(actorId, "approver")))
                 .andExpect(status().isConflict());
         assertBalances(0L, 0L);
         assertThat(transferRequestRepository.findById(transferId).orElseThrow().getCompletedAt()).isNull();
@@ -199,7 +205,7 @@ class TransferApiTest {
         setBalance(sourceAccountId, 999L);
         mockMvc.perform(post("/api/transfers/" + transferId + "/execute")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(actorBody(actorId)))
+                .with(asUser(actorId, "approver")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409));
         assertBalances(999L, 0L);
@@ -218,7 +224,7 @@ class TransferApiTest {
         setBalance(destinationAccountId, Long.MAX_VALUE);
         mockMvc.perform(post("/api/transfers/" + transferId + "/execute")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(actorBody(actorId)))
+                .with(asUser(actorId, "approver")))
                 .andExpect(status().isConflict());
         assertBalances(1000L, Long.MAX_VALUE);
         assertApprovedWithoutCompletion(transferId);
@@ -246,7 +252,7 @@ class TransferApiTest {
         }
     }
 
-    // 실행자 누락은 400, 다른 회사 사용자는 403, 없는 사용자나 요청은 404인지 확인합니다.
+    // 토큰 없음은 401, 다른 회사·업무 미등록 사용자는 403, 없는 요청은 404인지 확인합니다.
     // 어느 경우든 잔액과 승인 상태가 바뀌면 안 됩니다.
     @Test
     void executionValidatesActorAndReference() throws Exception {
@@ -256,21 +262,56 @@ class TransferApiTest {
         mockMvc.perform(post("/api/transfers/" + transferId + "/execute")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isUnauthorized());
         mockMvc.perform(post("/api/transfers/" + transferId + "/execute")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(actorBody(createOtherCompanyUser())))
+                .with(asUser(createOtherCompanyUser(), "approver")))
                 .andExpect(status().isForbidden());
         mockMvc.perform(post("/api/transfers/" + transferId + "/execute")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(actorBody(UUID.randomUUID())))
-                .andExpect(status().isNotFound());
+                .with(asUser(UUID.randomUUID(), "approver")))
+                .andExpect(status().isForbidden());
         mockMvc.perform(post("/api/transfers/" + UUID.randomUUID() + "/execute")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(actorBody(requesterId)))
+                .with(asUser(requesterId, "approver")))
                 .andExpect(status().isNotFound());
         assertBalances(1000L, 0L);
         assertApprovedWithoutCompletion(transferId);
+    }
+
+    // 다른 회사의 결재자가 실행을 시도하면 요청 상태와 상관없이 항상 403이어야 합니다.
+    // 상태 검사를 먼저 해 409를 돌려주면, 접근 권한이 없는 사람이 그 요청의 상태를 추측할 수 있습니다.
+    @ParameterizedTest
+    @EnumSource(TransferStatus.class)
+    void foreignCompanyCannotDiscoverTransferStateByExecuting(TransferStatus state) throws Exception {
+        UUID transferId = createRequest();
+        UUID reviewerId = createReviewer();
+        setBalance(sourceAccountId, 1000L);
+        switch (state) {
+            case REQUESTED -> { } // 처음 만든 요청은 이미 REQUESTED입니다.
+            case APPROVED -> transferWorkflowService.approve(transferId, reviewerId);
+            case REJECTED -> transferWorkflowService.reject(transferId, reviewerId);
+            case COMPLETED -> {
+                transferWorkflowService.approve(transferId, reviewerId);
+                transferWorkflowService.execute(transferId, reviewerId);
+            }
+        }
+        long sourceBalanceBefore = accountRepository.findById(sourceAccountId).orElseThrow().getBalanceWon();
+        long destinationBalanceBefore = accountRepository.findById(destinationAccountId).orElseThrow().getBalanceWon();
+        TransferRequest transferBefore = transferRequestRepository.findById(transferId).orElseThrow();
+
+        mockMvc.perform(post("/api/transfers/" + transferId + "/execute")
+                        .with(asUser(createOtherCompanyUser(), "approver")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403));
+
+        assertBalances(sourceBalanceBefore, destinationBalanceBefore);
+        TransferRequest transferAfter = transferRequestRepository.findById(transferId).orElseThrow();
+        assertThat(transferAfter.getStatus()).isEqualTo(state);
+        assertThat(transferAfter.getReviewerId()).isEqualTo(transferBefore.getReviewerId());
+        assertThat(transferAfter.getReviewedAt()).isEqualTo(transferBefore.getReviewedAt());
+        assertThat(transferAfter.getExecutedBy()).isEqualTo(transferBefore.getExecutedBy());
+        assertThat(transferAfter.getCompletedAt()).isEqualTo(transferBefore.getCompletedAt());
     }
 
     // 다른 회사로 잔액 전부인 1,000원을 보내면 출금 계좌는 0원, 수취 계좌는 1,000원이 되어야 합니다.
@@ -440,7 +481,7 @@ class TransferApiTest {
         }
         mockMvc.perform(post("/api/transfers/" + transferId + "/" + action)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(actorBody(actorId)))
+                .with(asUser(actorId, "approver")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value(expectedStatus))
                 .andExpect(jsonPath("$.reviewerId").value(actorId.toString()))
@@ -453,7 +494,7 @@ class TransferApiTest {
         for (String repeatedAction : new String[]{"approve", "reject"}) {
             mockMvc.perform(post("/api/transfers/" + transferId + "/" + repeatedAction)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(actorBody(actorId)))
+                    .with(asUser(actorId, "approver")))
                     .andExpect(status().isConflict())
                     .andExpect(jsonPath("$.status").value(409));
         }
@@ -469,7 +510,7 @@ class TransferApiTest {
         for (UUID actorId : new UUID[]{requesterId, createOtherCompanyUser()}) {
             mockMvc.perform(post("/api/transfers/" + transferId + "/" + action)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(actorBody(actorId)))
+                    .with(asUser(actorId, "approver")))
                     .andExpect(status().isForbidden())
                     .andExpect(jsonPath("$.status").value(403));
         }
@@ -479,7 +520,7 @@ class TransferApiTest {
         assertThat(savedTransfer.getReviewedAt()).isNull();
     }
 
-    // 처리자 ID 누락은 400, 없는 처리자나 이체 요청은 404가 되어야 합니다.
+    // 토큰 없음은 401, 업무 미등록 사용자는 403, 없는 이체 요청은 404가 되어야 합니다.
     @ParameterizedTest
     @ValueSource(strings = {"approve", "reject"})
     void rejectsMissingReviewActorAndTransfer(String action) throws Exception {
@@ -487,14 +528,14 @@ class TransferApiTest {
         mockMvc.perform(post("/api/transfers/" + transferId + "/" + action)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isUnauthorized());
         mockMvc.perform(post("/api/transfers/" + transferId + "/" + action)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(actorBody(UUID.randomUUID())))
-                .andExpect(status().isNotFound());
+                .with(asUser(UUID.randomUUID(), "approver")))
+                .andExpect(status().isForbidden());
         mockMvc.perform(post("/api/transfers/" + UUID.randomUUID() + "/" + action)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(actorBody(createReviewer())))
+                .with(asUser(createReviewer(), "approver")))
                 .andExpect(status().isNotFound());
         assertThat(transferRequestRepository.findById(transferId).orElseThrow().getStatus()).isEqualTo(TransferStatus.REQUESTED);
     }
@@ -503,9 +544,9 @@ class TransferApiTest {
     // DB에는 요청 한 건만 남고, 출금 잔액은 아직 변하지 않아야 합니다.
     @Test
     void createsRequestAndCommits() throws Exception {
-        mockMvc.perform(post("/api/transfers")
+        mockMvc.perform(post("/api/transfers").with(asUser(requesterId, "user"))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(requestBody(sourceAccountId, destinationAccountId, "1000", requesterId)))
+                .content(requestBody(sourceAccountId, destinationAccountId, "1000")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").isNotEmpty())
                 .andExpect(jsonPath("$.status").value("REQUESTED"))
@@ -521,9 +562,9 @@ class TransferApiTest {
     @ParameterizedTest
     @ValueSource(strings = {"0", "-1", "null", "1.5", "9223372036854775808"})
     void rejectsInvalidAmounts(String amount) throws Exception {
-        mockMvc.perform(post("/api/transfers")
+        mockMvc.perform(post("/api/transfers").with(asUser(requesterId, "user"))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(requestBody(sourceAccountId, destinationAccountId, amount, requesterId)))
+                .content(requestBody(sourceAccountId, destinationAccountId, amount)))
                 .andExpect(status().isBadRequest());
         assertThat(transferRequestRepository.count()).isZero();
     }
@@ -532,7 +573,7 @@ class TransferApiTest {
     @ParameterizedTest
     @ValueSource(strings = {"{}", "{", "null", "", "{\"sourceAccountId\":\"not-a-uuid\"}"})
     void rejectsMissingOrMalformedBody(String json) throws Exception {
-        mockMvc.perform(post("/api/transfers")
+        mockMvc.perform(post("/api/transfers").with(asUser(requesterId, "user"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json))
                 .andExpect(status().isBadRequest());
@@ -542,33 +583,30 @@ class TransferApiTest {
     // 출금과 입금 계좌 ID가 같은 요청은 400으로 거절해야 합니다.
     @Test
     void rejectsSameAccount() throws Exception {
-        mockMvc.perform(post("/api/transfers")
+        mockMvc.perform(post("/api/transfers").with(asUser(requesterId, "user"))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(requestBody(sourceAccountId, sourceAccountId, "1000", requesterId)))
+                .content(requestBody(sourceAccountId, sourceAccountId, "1000")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400));
         assertThat(transferRequestRepository.count()).isZero();
     }
 
-    // 출금 계좌·입금 계좌·요청자 중 하나만 없는 ID로 바꿔서 404 응답과 미저장을 확인합니다.
+    // 출금 계좌 또는 입금 계좌를 없는 ID로 바꿔서 404 응답과 미저장을 확인합니다.
     @ParameterizedTest
-    @ValueSource(strings = {"source", "destination", "requester"})
+    @ValueSource(strings = {"source", "destination"})
     void missingReferenceReturns404(String missing) throws Exception {
         // 정상 ID를 먼저 준비한 뒤, 이번 시험에서 없는 것으로 정한 ID 하나만 바꿉니다.
         UUID requestedSourceId = sourceAccountId;
         UUID requestedDestinationId = destinationAccountId;
-        UUID requestedUserId = requesterId;
         if (missing.equals("source")) {
             requestedSourceId = UUID.randomUUID();
         } else if (missing.equals("destination")) {
             requestedDestinationId = UUID.randomUUID();
-        } else if (missing.equals("requester")) {
-            requestedUserId = UUID.randomUUID();
         }
 
-        mockMvc.perform(post("/api/transfers")
+        mockMvc.perform(post("/api/transfers").with(asUser(requesterId, "user"))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(requestBody(requestedSourceId, requestedDestinationId, "1000", requestedUserId)))
+                .content(requestBody(requestedSourceId, requestedDestinationId, "1000")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
         assertThat(transferRequestRepository.count()).isZero();
@@ -577,9 +615,9 @@ class TransferApiTest {
     // 다른 회사 계좌에서 출금하는 요청은 403(허용되지 않음)을 반환하고 저장하지 않아야 합니다.
     @Test
     void companyMismatchReturns403() throws Exception {
-        mockMvc.perform(post("/api/transfers")
+        mockMvc.perform(post("/api/transfers").with(asUser(requesterId, "user"))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(requestBody(otherCompanyAccountId, destinationAccountId, "1000", requesterId)))
+                .content(requestBody(otherCompanyAccountId, destinationAccountId, "1000")))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.status").value(403));
         assertThat(transferRequestRepository.count()).isZero();
@@ -587,22 +625,67 @@ class TransferApiTest {
 
     // 시험에 보낼 JSON 글을 만드는 도우미입니다. %s 자리에 formatted의 값이 순서대로 들어갑니다.
     // 여기서는 정해진 시험 값과 UUID만 넣습니다. 실제 사용자 입력으로 JSON을 직접 조립하는 예시는 아닙니다.
-    private String requestBody(UUID sourceAccountId, UUID destinationAccountId, String amountJson, UUID requesterId) {
+    private String requestBody(UUID sourceAccountId, UUID destinationAccountId, String amountJson) {
         // amountJson은 일부러 글자로 받습니다. "null"이나 "1.5" 같은 잘못된 금액도 JSON에 넣어 시험합니다.
         return """
                 {
                   "sourceAccountId": "%s",
                   "destinationAccountId": "%s",
-                  "amountWon": %s,
-                  "requesterId": "%s"
+                  "amountWon": %s
                 }
-                """.formatted(sourceAccountId, destinationAccountId, amountJson, requesterId);
+                """.formatted(sourceAccountId, destinationAccountId, amountJson);
     }
 
-    // 승인·반려·실행 API에 보낼 처리자 ID입니다. 같은 JSON 조립 코드를 시험마다 반복하지 않도록 모았습니다.
-    private String actorBody(UUID actorId) {
-        return """
-                {"actorId": "%s"}
-                """.formatted(actorId);
+    // 해당 DB 사용자와 일치하는 iss + sub를 가진 "이미 검증된 토큰"을 시험에 붙입니다.
+    // 존재하지 않는 ID는 DB와 연결되지 않는 subject로 만들어 403 상황을 재현합니다.
+    private RequestPostProcessor asUser(UUID userId, String role) {
+        String subject = appUserRepository.findById(userId)
+                .map(AppUser::getIdentitySubject).orElse("unprovisioned-" + userId);
+        return jwt().jwt(token -> token.issuer("https://identity.example").subject(subject))
+                .authorities(new SimpleGrantedAuthority("ROLE_" + role));
+    }
+
+    @Test
+    void rejectsSpoofedRequesterAndActorInsteadOfUsingClientIds() throws Exception {
+        String body = requestBody(sourceAccountId, destinationAccountId, "1000");
+        String spoofed = body.replace("\"amountWon\": 1000", "\"amountWon\": 1000, \"requesterId\": \"" + requesterId + "\"");
+        mockMvc.perform(post("/api/transfers").with(asUser(requesterId, "user"))
+                        .contentType(MediaType.APPLICATION_JSON).content(spoofed))
+                .andExpect(status().isBadRequest());
+        assertThat(transferRequestRepository.count()).isZero();
+        UUID transferId = createRequest();
+        UUID reviewerId = createReviewer();
+        mockMvc.perform(post("/api/transfers/" + transferId + "/approve").with(asUser(requesterId, "approver"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"actorId\":\"" + reviewerId + "\"}"))
+                .andExpect(status().isBadRequest());
+        assertThat(transferRequestRepository.findById(transferId).orElseThrow().getStatus()).isEqualTo(TransferStatus.REQUESTED);
+    }
+
+    @Test
+    void authenticatedButUnprovisionedUserCannotCreateTransfer() throws Exception {
+        mockMvc.perform(post("/api/transfers").with(asUser(UUID.randomUUID(), "user"))
+                        .contentType(MediaType.APPLICATION_JSON).content(requestBody(sourceAccountId, destinationAccountId, "1000")))
+                .andExpect(status().isForbidden());
+        assertThat(transferRequestRepository.count()).isZero();
+    }
+
+    @Test
+    void userRoleCannotApproveEvenWithSameCompany() throws Exception {
+        UUID transferId = createRequest();
+        mockMvc.perform(post("/api/transfers/" + transferId + "/approve").with(asUser(createReviewer(), "user")))
+                .andExpect(status().isForbidden());
+        assertThat(transferRequestRepository.findById(transferId).orElseThrow().getStatus()).isEqualTo(TransferStatus.REQUESTED);
+    }
+
+    @Test
+    void companyReadUsesDatabaseMembershipAndAdminException() throws Exception {
+        UUID ownCompanyId = appUserRepository.findById(requesterId).orElseThrow().getCompany().getId();
+        UUID otherCompanyId = accountRepository.findById(otherCompanyAccountId).orElseThrow().getCompany().getId();
+        mockMvc.perform(get("/api/companies/" + ownCompanyId).with(asUser(requesterId, "user")))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/companies/" + otherCompanyId).with(asUser(requesterId, "user")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/companies/" + otherCompanyId).with(asUser(requesterId, "admin")))
+                .andExpect(status().isOk());
     }
 }

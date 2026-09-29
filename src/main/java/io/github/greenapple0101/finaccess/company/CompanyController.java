@@ -8,10 +8,13 @@
 // 응답은 반대 방향으로 돌아옵니다. 폴더가 여러 겹이라고 여러 서버가 생기는 것은 아닙니다.
 //
 // 이 파일은 주소·입력·응답을 담당하고, 저장 순서와 업무 처리는 Service가 담당합니다.
-// 현재 회사 API에는 로그인 및 회사별 접근 권한 검사가 없으므로 로컬 학습용으로 사용합니다.
+// 등록은 관리자만 가능하고, 조회는 자기 회사만 가능합니다. 관리자는 운영용 회사 조회를 허용합니다.
 
 package io.github.greenapple0101.finaccess.company;
 
+import io.github.greenapple0101.finaccess.security.CurrentAppUser;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -36,13 +39,15 @@ public class CompanyController {
     // 회사 업무를 맡길 Service를 보관하는 자리입니다.
     // private은 이 클래스 안에서 사용한다는 뜻이고, final은 다른 Service로 바꿔 끼우지 않겠다는 뜻입니다.
     private final CompanyService companyService;
+    private final CurrentAppUser currentAppUser;
 
     // Spring이 Controller를 만들 때 필요한 CompanyService를 여기로 전달합니다.
     // 필요한 객체를 밖에서 받아 연결하는 방식을 "의존성 주입"이라고 부릅니다.
     // 생성자가 하나라 @Autowired를 따로 쓰지 않아도 Spring이 이 생성자를 사용합니다.
     // this.companyService에 받은 객체를 보관해 두면 아래 메서드에서도 사용할 수 있습니다.
-    public CompanyController(CompanyService companyService) {
+    public CompanyController(CompanyService companyService, CurrentAppUser currentAppUser) {
         this.companyService = companyService;
+        this.currentAppUser = currentAppUser;
     }
 
     // POST는 새 회사 등록 요청에 사용합니다. 주소를 더 붙이지 않아 /api/companies를 그대로 씁니다.
@@ -62,7 +67,17 @@ public class CompanyController {
     // @PathVariable은 주소의 id 부분을 꺼내 UUID 타입으로 바꾸어 줍니다.
     // UUID 모양이 잘못되면 400, 모양은 맞지만 회사가 없으면 아래 오류 처리기를 거쳐 404입니다.
     @GetMapping("/{id}")
-    public CompanyService.CompanyDetails findById(@PathVariable UUID id) {
+    public CompanyService.CompanyDetails findById(@PathVariable UUID id, JwtAuthenticationToken authentication) {
+        // admin은 회사 등록·운영을 담당하므로 여러 회사를 조회할 수 있게 명시적으로 허용합니다.
+        // 일반 사용자는 토큰에 회사 ID를 직접 적어 보내는 대신 우리 DB의 소속을 사용합니다.
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(authority -> authority.getAuthority().equals("ROLE_admin"));
+        if (!isAdmin) {
+            UUID companyId = currentAppUser.resolve(authentication.getToken()).companyId();
+            if (!companyId.equals(id)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot read another company");
+            }
+        }
         return companyService.findById(id);
     }
 

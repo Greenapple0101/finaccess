@@ -2,8 +2,9 @@
 // 이미 저장된 이체 요청을 승인·반려하거나, 승인된 요청의 모의 이체를 실행합니다.
 // Controller가 이 서비스를 부르고, 서비스는 저장소로 찾은 객체에게 상태·잔액 변경을 맡깁니다.
 // 결재 순서: 요청 잠금 → 처리자의 회사 검사 → 자기 결재·상태 검사 → 결과 저장.
-// 실행 순서: 요청 잠금 → 승인 확인 → 사용자 조회 → 계좌 잠금 → 회사 검사 → 출금·입금·완료.
-// 아직 로그인과 역할 검사는 없습니다. 입력받은 사용자 ID로 회사 소속만 확인합니다.
+// 실행 순서: 요청 잠금 → 사용자 조회 → 계좌 잠금 → 회사 검사 → 승인 확인 → 출금·입금·완료.
+// HTTP 요청은 SecurityConfig의 토큰·역할 검사를 거치고, Controller가 로그인 신원으로 사용자 ID를 정합니다.
+// 이 서비스는 전달받은 업무 사용자 ID로 회사·상태·잔액 규칙을 확인합니다.
 package io.github.greenapple0101.finaccess.transfer;
 
 import java.time.Instant;
@@ -65,12 +66,8 @@ public class TransferWorkflowService {
 
         // 먼저 요청 한 행을 잠급니다. 같은 요청을 동시에 실행해 두 번 출금하는 일을 막기 위해서입니다.
         // 이 잠금은 트랜잭션이 끝날 때 풀립니다. 다른 요청이나 DB 전체를 잠그는 것은 아닙니다.
-        // 승인 전이거나 이미 완료된 요청은 계좌 잔액을 바꾸기 전에 중단합니다.
         TransferRequest transfer = transferRepository.findLockedById(transferId)
                 .orElseThrow(() -> new TransferReferenceNotFoundException("Transfer", transferId));
-        if (transfer.getStatus() != TransferStatus.APPROVED) {
-            throw new TransferStateConflictException("Only approved transfers can be executed");
-        }
 
         AppUser actor = userRepository.findById(actorId)
                 .orElseThrow(() -> new TransferReferenceNotFoundException("Actor", actorId));
@@ -98,6 +95,12 @@ public class TransferWorkflowService {
         // 실행하는 사람도 출금 회사 소속이어야 합니다. 이 검사는 DB를 다시 조회하지 않습니다.
         // 이미 찾은 사용자와 잠근 계좌의 회사 ID만 비교합니다.
         checkSourceCompany(actor, sourceAccount);
+        // 자기 회사의 요청임을 먼저 확인한 다음 상태를 알려줍니다.
+        // 순서를 바꾸면 다른 회사 사람이 403/409 차이로 승인 여부를 추측할 수 있습니다.
+        // 승인 전이거나 이미 완료된 요청은 아직 잔액을 바꾸기 전에 중단합니다.
+        if (transfer.getStatus() != TransferStatus.APPROVED) {
+            throw new TransferStateConflictException("Only approved transfers can be executed");
+        }
         long amountWon = transfer.getAmountWon();
 
         // 출금은 Account가 잔액 부족을 검사합니다. 부족하면 예외가 발생해 아래 입금은 실행하지 않습니다.
