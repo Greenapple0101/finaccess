@@ -201,3 +201,5 @@ docker compose ps
 - [20. 내부 이체·잠금·롤백 검증](docs/20-internal-transfer.md)
 
 - [2026.09.29 내부 공유용 진행 현황](docs/21-internal-progress-2026-09-29.md)
+
+- [23. 동작을 유지하며 읽기 쉽게 바꾼 코드](docs/23-readable-refactoring.md)

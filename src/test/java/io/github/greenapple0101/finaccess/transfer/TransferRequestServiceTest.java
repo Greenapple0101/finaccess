@@ -1,5 +1,5 @@
 // [이 파일의 역할] 이체 요청 서비스가 계좌·사용자·회사 소속을 확인한 뒤 저장하는지 검사합니다.
-// 공통 데이터 준비 → service.request(...) 호출 → DB에 남은 결과 확인 순서로 읽으세요.
+// 공통 데이터 준비 → transferRequestService.request(...) 호출 → DB에 남은 결과 확인 순서로 읽으세요.
 // HTTP 요청은 보내지 않고 서비스를 직접 호출합니다. Spring과 실제 PostgreSQL은 사용합니다.
 // 테스트 자체에는 @Transactional이 없습니다. 서비스가 저장을 확정한 결과를 확인하기 위해서입니다.
 // 저장 확정을 '커밋', 처리 중 실패했을 때 DB 변경을 되돌리는 것을 '롤백'이라고 합니다.
@@ -10,16 +10,15 @@ package io.github.greenapple0101.finaccess.transfer;
 
 import io.github.greenapple0101.finaccess.account.Account;
 import io.github.greenapple0101.finaccess.account.AccountRepository;
-import io.github.greenapple0101.finaccess.user.AppUser;
-import io.github.greenapple0101.finaccess.user.AppUserRepository;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
-
 import io.github.greenapple0101.finaccess.company.Company;
 import io.github.greenapple0101.finaccess.company.CompanyRepository;
+import io.github.greenapple0101.finaccess.user.AppUser;
+import io.github.greenapple0101.finaccess.user.AppUserRepository;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -54,37 +53,37 @@ class TransferRequestServiceTest {
 
     // @Autowired는 Spring이 준비한 도구를 이 변수에 넣어 달라는 표시입니다.
     // Repository는 저장·조회, JdbcTemplate은 SQL 실행을 도와줍니다.
-    @Autowired AccountRepository accounts;
-    @Autowired CompanyRepository companies;
-    @Autowired JdbcTemplate jdbc;
+    @Autowired AccountRepository accountRepository;
+    @Autowired CompanyRepository companyRepository;
+    @Autowired JdbcTemplate jdbcTemplate;
+    @Autowired TransferRequestRepository transferRequestRepository;
+    @Autowired AppUserRepository appUserRepository;
+    @Autowired TransferRequestService transferRequestService;
 
-    @Autowired TransferRequestRepository transfers;
-    @Autowired AppUserRepository users;
-    private UUID sourceId;
-    private UUID destinationId;
+    private UUID sourceAccountId;
+    private UUID destinationAccountId;
     private UUID requesterId;
-
-    @Autowired TransferRequestService service;
     private UUID otherCompanyAccountId;
 
     // 각 시험 전에 회사·계좌·요청자를 새로 준비합니다. 앞 시험의 데이터에 기대지 않도록 합니다.
     @BeforeEach
     void prepareReferences() {
-        Company company = companies.saveAndFlush(new Company("요청 회사"));
-        Company other = companies.saveAndFlush(new Company("수취 회사"));
-        sourceId = accounts.saveAndFlush(new Account(company)).getId();
-        destinationId = accounts.saveAndFlush(new Account(company)).getId();
-        otherCompanyAccountId = accounts.saveAndFlush(new Account(other)).getId();
-        requesterId = users.saveAndFlush(new AppUser(company, "https://identity.example", "requester")).getId();
+        Company requesterCompany = companyRepository.saveAndFlush(new Company("요청 회사"));
+        Company otherCompany = companyRepository.saveAndFlush(new Company("수취 회사"));
+        sourceAccountId = accountRepository.saveAndFlush(new Account(requesterCompany)).getId();
+        destinationAccountId = accountRepository.saveAndFlush(new Account(requesterCompany)).getId();
+        otherCompanyAccountId = accountRepository.saveAndFlush(new Account(otherCompany)).getId();
+        AppUser requester = new AppUser(requesterCompany, "https://identity.example", "requester");
+        requesterId = appUserRepository.saveAndFlush(requester).getId();
     }
 
     // 서비스가 커밋한 시험 데이터를 직접 지웁니다. 참조하는 요청서부터 지운 뒤 계좌·사용자·회사를 지웁니다.
     @AfterEach
     void cleanUp() {
-        jdbc.update("DELETE FROM transfer_requests");
-        jdbc.update("DELETE FROM accounts");
-        jdbc.update("DELETE FROM app_users");
-        jdbc.update("DELETE FROM companies");
+        jdbcTemplate.update("DELETE FROM transfer_requests");
+        jdbcTemplate.update("DELETE FROM accounts");
+        jdbcTemplate.update("DELETE FROM app_users");
+        jdbcTemplate.update("DELETE FROM companies");
     }
 
     // 입금 계좌는 같은 회사여도, 다른 회사여도 요청할 수 있습니다. 두 경우를 반복해서 확인합니다.
@@ -92,42 +91,68 @@ class TransferRequestServiceTest {
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void commitsRequestForSameOrOtherCompanyRecipient(boolean otherCompany) {
-        UUID target = otherCompany ? otherCompanyAccountId : destinationId;
-        var result = service.request(sourceId, target, 1000L, requesterId);
+        UUID recipientAccountId;
+        if (otherCompany) {
+            recipientAccountId = otherCompanyAccountId;
+        } else {
+            recipientAccountId = destinationAccountId;
+        }
+        TransferRequestService.RequestedTransfer result =
+                transferRequestService.request(sourceAccountId, recipientAccountId, 1000L, requesterId);
         // 서비스 호출이 끝난 뒤 새로 조회합니다. 실제로 커밋되어 다른 조회에서도 보이는지 확인합니다.
-        TransferRequest loaded = transfers.findById(result.id()).orElseThrow();
-        assertThat(loaded.getSourceAccountId()).isEqualTo(sourceId);
-        assertThat(loaded.getDestinationAccountId()).isEqualTo(target);
-        assertThat(loaded.getRequesterId()).isEqualTo(requesterId);
-        assertThat(loaded.getAmountWon()).isEqualTo(1000L);
-        assertThat(loaded.getStatus()).isEqualTo(TransferStatus.REQUESTED);
-        assertThat(loaded.getCreatedAt()).isNotNull();
+        TransferRequest savedTransfer = transferRequestRepository.findById(result.id()).orElseThrow();
+        assertThat(savedTransfer.getSourceAccountId()).isEqualTo(sourceAccountId);
+        assertThat(savedTransfer.getDestinationAccountId()).isEqualTo(recipientAccountId);
+        assertThat(savedTransfer.getRequesterId()).isEqualTo(requesterId);
+        assertThat(savedTransfer.getAmountWon()).isEqualTo(1000L);
+        assertThat(savedTransfer.getStatus()).isEqualTo(TransferStatus.REQUESTED);
+        assertThat(savedTransfer.getCreatedAt()).isNotNull();
         assertThat(result).isEqualTo(new TransferRequestService.RequestedTransfer(
-                loaded.getId(), sourceId, target, 1000L, requesterId, TransferStatus.REQUESTED));
-        assertThat(accounts.findById(sourceId).orElseThrow().getBalanceWon()).isZero();
-        assertThat(accounts.findById(target).orElseThrow().getBalanceWon()).isZero();
+                savedTransfer.getId(), sourceAccountId, recipientAccountId, 1000L, requesterId, TransferStatus.REQUESTED));
+        assertThat(accountRepository.findById(sourceAccountId).orElseThrow().getBalanceWon()).isZero();
+        assertThat(accountRepository.findById(recipientAccountId).orElseThrow().getBalanceWon()).isZero();
     }
 
     // 다른 회사의 계좌에서 출금해 달라는 요청은 거절하고, 요청서도 저장하지 않아야 합니다.
     @Test
     void rejectsOtherCompanySourceWithoutSaving() {
-        assertThatThrownBy(() -> service.request(otherCompanyAccountId, destinationId, 1000L, requesterId))
+        assertThatThrownBy(() -> transferRequestService.request(otherCompanyAccountId, destinationAccountId, 1000L, requesterId))
                 .isInstanceOf(TransferCompanyMismatchException.class);
-        assertThat(transfers.count()).isZero();
+        assertThat(transferRequestRepository.count()).isZero();
     }
 
     // 출금 계좌·입금 계좌·요청자 중 하나씩 없는 ID로 바꾸어 세 가지 경우를 확인합니다.
     @ParameterizedTest
     @ValueSource(strings = {"source", "destination", "requester"})
     void rejectsMissingReferencesWithoutSaving(String missing) {
-        UUID unknown = UUID.randomUUID();
-        UUID source = missing.equals("source") ? unknown : sourceId;
-        UUID destination = missing.equals("destination") ? unknown : destinationId;
-        UUID requester = missing.equals("requester") ? unknown : requesterId;
-        assertThatThrownBy(() -> service.request(source, destination, 1000L, requester))
+        UUID missingId = UUID.randomUUID();
+        // 아래 세 값 중 이번 시험에서 없는 것으로 정한 값만 missingId로 고릅니다.
+        UUID requestedSourceId;
+        if (missing.equals("source")) {
+            requestedSourceId = missingId;
+        } else {
+            requestedSourceId = sourceAccountId;
+        }
+
+        UUID requestedDestinationId;
+        if (missing.equals("destination")) {
+            requestedDestinationId = missingId;
+        } else {
+            requestedDestinationId = destinationAccountId;
+        }
+
+        UUID requestedUserId;
+        if (missing.equals("requester")) {
+            requestedUserId = missingId;
+        } else {
+            requestedUserId = requesterId;
+        }
+
+        assertThatThrownBy(() -> transferRequestService.request(
+                requestedSourceId, requestedDestinationId, 1000L, requestedUserId))
                 .isInstanceOf(TransferReferenceNotFoundException.class)
-                .hasMessageContaining(unknown.toString());
-        assertThat(transfers.count()).isZero();
+                .hasMessageContaining(missingId.toString());
+        assertThat(transferRequestRepository.count()).isZero();
     }
 
     // ID 누락·같은 계좌·0원·음수 금액을 하나씩 넣어 봅니다.
@@ -135,14 +160,43 @@ class TransferRequestServiceTest {
     @ParameterizedTest
     @ValueSource(strings = {"nullSource", "nullDestination", "nullRequester", "sameAccount", "zero", "negative"})
     void rejectsInvalidInputWithoutSaving(String invalid) {
-        // 조건 ? A : B는 조건이 맞으면 A, 아니면 B를 고릅니다. 이번 시험의 잘못된 입력 한 개를 만듭니다.
-        UUID source = invalid.equals("nullSource") ? null : sourceId;
-        UUID destination = invalid.equals("nullDestination") ? null
-                : invalid.equals("sameAccount") ? sourceId : destinationId;
-        UUID requester = invalid.equals("nullRequester") ? null : requesterId;
-        long amount = invalid.equals("zero") ? 0L : invalid.equals("negative") ? -1L : 1000L;
-        assertThatThrownBy(() -> service.request(source, destination, amount, requester))
+        // 각 값에 정상 입력 또는 이번 시험에서 확인할 잘못된 입력을 넣습니다.
+        // 한 값의 준비를 끝내고 다음 값으로 넘어가도록 if 문으로 풀어 씁니다.
+        UUID requestedSourceId;
+        if (invalid.equals("nullSource")) {
+            requestedSourceId = null;
+        } else {
+            requestedSourceId = sourceAccountId;
+        }
+
+        UUID requestedDestinationId;
+        if (invalid.equals("nullDestination")) {
+            requestedDestinationId = null;
+        } else if (invalid.equals("sameAccount")) {
+            requestedDestinationId = sourceAccountId;
+        } else {
+            requestedDestinationId = destinationAccountId;
+        }
+
+        UUID requestedUserId;
+        if (invalid.equals("nullRequester")) {
+            requestedUserId = null;
+        } else {
+            requestedUserId = requesterId;
+        }
+
+        long requestedAmountWon;
+        if (invalid.equals("zero")) {
+            requestedAmountWon = 0L;
+        } else if (invalid.equals("negative")) {
+            requestedAmountWon = -1L;
+        } else {
+            requestedAmountWon = 1000L;
+        }
+
+        assertThatThrownBy(() -> transferRequestService.request(
+                requestedSourceId, requestedDestinationId, requestedAmountWon, requestedUserId))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThat(transfers.count()).isZero();
+        assertThat(transferRequestRepository.count()).isZero();
     }
 }

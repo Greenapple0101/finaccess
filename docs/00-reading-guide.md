@@ -103,3 +103,5 @@ Gradle이 제공하는 `gradlew` 같은 실행 도구의 내부 코드는 지금
 SQL은 [DB 변경 파일 쉬운 해설](22-database-reading-guide.md)을 먼저 읽으세요.
 이미 적용한 SQL은 주석만 바꿔도 Flyway가 다른 파일로 판단할 수 있으므로 원본은 유지했습니다.
 과거 단계 문서는 그 당시 구현 범위를 설명하고, 현재 동작은 소스 주석과 [요청 API](18-transfer-api.md)·[승인/반려](19-transfer-review.md)·[내부 이체](20-internal-transfer.md) 문서를 기준으로 읽으면 됩니다.
+
+[읽기 쉽게 리팩토링한 이유와 전후 비교](23-readable-refactoring.md)에서 현재 이름과 코드를 확인할 수 있습니다.
