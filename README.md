@@ -176,3 +176,5 @@ docker compose ps
 요청자·계좌 존재 여부와 요청자의 회사가 출금 계좌 소유 회사인지 검사한 뒤 저장합니다. 수취 계좌는 다른 회사도 허용합니다. 로그인 신원 검증과 이체 HTTP API는 아직 연결하지 않았습니다.
 
 - [17. 이체 요청 서비스와 트랜잭션](docs/17-transfer-request-service.md)
+
+- [18. 이체 요청 HTTP API와 오류 응답](docs/18-transfer-api.md)

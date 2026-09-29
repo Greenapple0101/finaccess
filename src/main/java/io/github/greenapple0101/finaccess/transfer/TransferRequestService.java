@@ -10,7 +10,7 @@ import java.util.UUID;
 
 // [역할] 요청 객체의 검사만으로 알 수 없는 실제 DB 존재 여부와 회사 소속을 확인합니다.
 // 객체 생성 → 요청자 조회 → 출금 계좌 조회·소속 확인 → 입금 계좌 조회 → 저장 순서입니다.
-// 아직 Controller나 로그인 연동은 없습니다. requesterId가 실제 호출자의 신원인지는 검증하지 않습니다.
+// Controller에 연결했지만 로그인 연동은 없습니다. requesterId가 실제 호출자의 신원인지는 검증하지 않습니다.
 @Service // Spring이 이 클래스를 찾아 서비스 객체(Bean)를 만들도록 표시합니다.
 public class TransferRequestService {
     // final은 생성자에서 주입받은 저장소 참조를 다른 참조로 재대입하지 못하게 합니다.
