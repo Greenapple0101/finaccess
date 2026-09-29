@@ -2,6 +2,8 @@
 
 **코드 읽기가 처음이라면 [쉬운 설명과 코드 읽는 순서](docs/00-reading-guide.md)부터 시작하세요.**
 
+**현재 인증 구조는 [24. JWT 검증과 업무 사용자 연결](docs/24-jwt-resource-server.md)을 확인하세요.** 이전 단계 문서는 당시의 구현 과정을 기록하므로, 인증 도입 전 요청 예시는 현재 API와 다를 수 있습니다.
+
 소스와 테스트 주석은 파일의 역할 → 실행 순서 → 구체적인 예시 순으로 설명합니다. [DB 변경 파일 쉬운 해설](docs/22-database-reading-guide.md)도 함께 볼 수 있습니다.
 
 기업 자금관리·이체 승인 과정을 구현하며 Spring, 인증·인가, 금융 거래의 정확성을 학습하는 프로젝트입니다.
@@ -10,9 +12,10 @@
 ## 목표
 
 - 금융 도메인: 이체 상태, 승인 통제, 중복 처리 방지, 동시성, 감사 기록을 구현합니다.
-- 회사 발표: Keycloak과 Spring Security의 로그인·SSO·권한 검사 책임을 설명합니다.
+- 회사 발표: Keycloak·Apache APISIX·독립적인 두 Spring Resource Server의 JWT 검증과 권한 검사 책임을 설명합니다.
 - 개인 학습: 작은 기능을 구현하고 테스트하며 Spring의 동작을 이해합니다.
-- 확장: Kubernetes와 Istio로 서비스 간 접근을 통제하고 부하·장애 상황을 실험합니다.
+- 이번 범위: FinAdmin과 FinAccess를 각각 실행하고 Gateway와 각 백엔드의 인증·인가를 검증합니다.
+- 향후 별도 범위: Kubernetes·Istio·부하 실험. SSO 시연은 이번 목표에 포함하지 않습니다.
 
 ## 첫 번째 완성 범위
 
@@ -38,15 +41,14 @@
 
 | 구성 | 책임 |
 | --- | --- |
-| Keycloak | 사용자 로그인, SSO, 역할 관리, 토큰 발급 |
-| Spring Security | 로그인 연동, 보호 API의 인증과 접근 제어 |
+| Keycloak | 사용자 로그인, API별 역할 관리, 액세스 토큰 발급 |
+| Apache APISIX | 토큰 검증, API 라우팅, Bearer 토큰 전달 |
+| Spring Security | 백엔드 자체의 JWT 검증, 클라이언트 역할에 따른 API 접근 제어 |
 | Spring 업무 로직 | 회사 소속, 자기 승인 금지, 잔액, 거래 상태 검증 |
 | PostgreSQL | 업무 데이터 저장과 트랜잭션 |
 | Istio — 2차 | 서비스 신원에 기반한 통신 통제와 mTLS |
 
-1차는 Spring MVC·JPA 중심의 단일 업무 서버로 시작합니다.
-WebClient·WebFlux는 외부 은행 연동의 필요와 학습 목적에 맞춰 단계적으로 적용합니다.
-2차는 은행 연동 서비스를 분리하고 Kubernetes·Istio 환경을 추가합니다.
+FinAccess는 Spring MVC·JPA로 업무 데이터를 처리합니다. 별도 [FinAdmin](https://github.com/Greenapple0101/finadmin)은 관리자 API와 통합 실습 환경을 제공합니다. 각 앱은 Gateway와 별개로 토큰을 검증합니다.
 
 ## 진행 방식
 
@@ -59,9 +61,11 @@ WebClient·WebFlux는 외부 은행 연동의 필요와 학습 목적에 맞춰 
 
 ## 현재 상태
 
-회사 등록·조회 API, 사용자 소속 모델, 계좌 개설 API와 입출금 규칙을 구현했습니다. 이체 상태 전이 규칙도 정의했습니다. 이체 요청·승인·반려·실행 API를 구현했습니다. 인증은 이후 단계입니다.
+회사 등록·조회 API, 사용자 소속 모델, 계좌 개설 API와 입출금 규칙을 구현했습니다. 이체 상태 전이 규칙도 정의했습니다. 이체 요청·승인·반려·실행 API를 구현했습니다. JWT 검증, API별 역할 검사와 검증된 신원에 따른 회사 접근 제한을 추가했습니다.
 
 ## 개발 환경과 실행
+
+**Keycloak·APISIX·두 백엔드를 함께 실행하려면 [FinAdmin 통합 실행 가이드](https://github.com/Greenapple0101/finadmin#실행하기)를 사용하세요.** 아래 명령은 FinAccess만 로컬에서 실행하는 방법입니다. 통합 실습에서는 FinAccess 직접 호출 포트가 18082이고, Gateway 주소는 `http://localhost:18090/access/`입니다.
 
 - Java 21
 - Spring Boot 4.1.1
@@ -126,20 +130,20 @@ docker compose ps
 ## 회사 등록 API
 
 `POST /api/companies`에 `{"name":"핀액세스 데모"}`를 보내면 HTTP 201과 회사 id·name을 반환합니다.
-잘못된 이름은 400으로 거부합니다. 아직 인증 도입 전의 로컬 학습용 API입니다.
+잘못된 이름은 400으로 거부합니다. `finaccess-api`의 `admin` 역할이 필요합니다.
 실행·요청 예시와 테스트 설명은 위 07 문서를 확인하세요.
 
 ## 회사 조회 API
 
 `GET /api/companies/{id}`는 id·name·createdAt을 반환합니다.
-존재하지 않는 회사는 404, UUID 형식이 잘못된 요청은 400입니다.
+일반 사용자는 업무 DB에 연결된 자기 회사만 조회합니다. 다른 회사는 403입니다. `admin`은 여러 회사 조회가 가능합니다. 허용된 조회에서 회사가 없으면 404, 잘못된 UUID는 400입니다.
 
 - [08. 회사 조회와 200·400·404의 구분](docs/08-find-company.md)
 
 ## 업무 사용자와 회사 소속
 
 `app_users`는 회사 한 곳에 소속되며, 인증 발급자와 사용자 식별자 조합으로 로그인 계정과 연결할 준비를 합니다.
-현재는 모델·저장소와 DB 제약까지 구현했습니다. 로그인·사용자 등록 API·회사별 접근 통제는 이후 단계입니다.
+검증된 JWT의 `iss + sub`로 이 표를 조회합니다. 업무 DB에 등록되지 않은 신원은 이체 업무에서 403으로 거부합니다. 사용자 등록 API는 없으며 통합 실습의 초기 데이터 준비 단계에서 연결합니다.
 
 - [09. 업무 사용자와 회사 소속](docs/09-user-company.md)
 
@@ -153,7 +157,7 @@ docker compose ps
 ## 계좌 개설 API
 
 `POST /api/companies/{companyId}/accounts`는 본문 없이 호출하며, 201과 계좌 id·companyId·balanceWon(0)을 반환합니다.
-없는 회사는 404, 잘못된 UUID는 400입니다. 현재 회사별 권한 검사는 없습니다.
+`admin`만 개설할 수 있습니다. 관리자는 여러 회사의 계좌를 개설할 수 있으며, 없는 회사는 404, 잘못된 UUID는 400입니다.
 
 - [12. 계좌 개설 API를 만든 순서](docs/12-open-account.md)
 
@@ -167,7 +171,7 @@ docker compose ps
 
 ## 이체 요청 객체
 
-출금·입금 계좌 ID, 양수 금액, 요청자 ID를 묶는 TransferRequest를 추가했습니다. 동일 계좌 요청을 거부하고 최초 상태를 REQUESTED로 고정합니다. JPA 저장소와 DB 제약을 연결했으며 저장·재조회를 검증했습니다. 요청·승인·반려·실행 API와 회사 소속 검사를 연결했습니다. 로그인 신원·역할 검사는 아직 없습니다.
+출금·입금 계좌 ID, 양수 금액, 요청자 ID를 묶는 TransferRequest를 추가했습니다. 동일 계좌 요청을 거부하고 최초 상태를 REQUESTED로 고정합니다. JPA 저장소와 DB 제약을 연결했으며 저장·재조회를 검증했습니다. 요청·승인·반려·실행 API와 회사 소속 검사를 연결했습니다. HTTP 진입점에 로그인 신원·역할 검사를 연결했습니다.
 
 - [15. 이체 요청 객체를 만든 순서](docs/15-transfer-request-model.md)
 
@@ -175,7 +179,7 @@ docker compose ps
 
 ## 이체 요청 서비스
 
-요청자·계좌 존재 여부와 요청자의 회사가 출금 계좌 소유 회사인지 검사한 뒤 저장합니다. 수취 계좌는 다른 회사도 허용합니다. HTTP API와 연결했습니다. 로그인 신원 검증은 아직 없습니다.
+요청자·계좌 존재 여부와 요청자의 회사가 출금 계좌 소유 회사인지 검사한 뒤 저장합니다. 수취 계좌는 다른 회사도 허용합니다. HTTP API와 연결했습니다. 요청자 ID는 Controller가 검증한 JWT 신원으로 찾습니다.
 
 - [17. 이체 요청 서비스와 트랜잭션](docs/17-transfer-request-service.md)
 
@@ -192,14 +196,16 @@ docker compose ps
 | POST /api/transfers/{id}/reject | 다른 사용자의 반려 | 200 |
 | POST /api/transfers/{id}/execute | 승인된 요청 실행 | 200 |
 
-생성에는 sourceAccountId, destinationAccountId, amountWon, requesterId를 전달합니다.
-승인·반려·실행에는 actorId를 전달합니다. 모두 실제 DB에 저장된 ID여야 합니다.
-아직 인증 없는 로컬 실습용 API이므로 입력 ID를 실제 로그인 신원으로 신뢰하지 않습니다.
+생성에는 `sourceAccountId`, `destinationAccountId`, `amountWon`만 전달합니다. `user` 또는 `admin` 역할이 필요합니다.
+승인·반려·실행에는 본문 없이 Bearer 토큰을 전달합니다. `approver` 또는 `admin` 역할이 필요합니다.
+`requesterId`·`actorId` 입력은 거부합니다. 수행자 ID는 검증된 토큰과 업무 DB의 연결에서 찾습니다.
 입력 오류 400, 회사 불일치·자기 결재 403, 없는 참조 404, 상태·잔액 충돌 409입니다.
-전체 API는 인증 도입 전이며 외부 공개용으로 구성하지 않았습니다.
+토큰 없음·유효하지 않은 토큰은 401, 역할 부족·미등록 업무 신원은 403입니다. 로컬 실습 환경이며 운영 배포의 TLS·네트워크 정책·비밀 관리 등은 별도로 준비해야 합니다.
 
 - [20. 내부 이체·잠금·롤백 검증](docs/20-internal-transfer.md)
 
 - [2026.09.29 내부 공유용 진행 현황](docs/21-internal-progress-2026-09-29.md)
 
 - [23. 동작을 유지하며 읽기 쉽게 바꾼 코드](docs/23-readable-refactoring.md)
+
+- [24. JWT 검증·역할 제한·업무 사용자 연결](docs/24-jwt-resource-server.md)
