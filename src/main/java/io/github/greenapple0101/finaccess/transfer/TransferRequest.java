@@ -66,6 +66,12 @@ public class TransferRequest {
     @Column(name = "reviewed_at")
     private Instant reviewedAt;
 
+    // 완료 시각·실행자입니다. 승인 시점이 아니라 출금·입금과 함께 저장합니다.
+    @Column(name = "completed_at")
+    private Instant completedAt;
+    @Column(name = "executed_by")
+    private UUID executedBy;
+
     // JPA가 조회 결과로 객체를 복원할 때 사용하는 인자 없는 생성자입니다.
     // protected로 접근 범위를 좁히고 일반 코드에는 아래의 검증하는 생성자를 사용하게 합니다.
     // JPA 복원 시 업무용 생성자의 검증을 다시 실행하는 것은 아닙니다.
@@ -131,6 +137,20 @@ public class TransferRequest {
         this.reviewerId = reviewerId;
         this.reviewedAt = Instant.now();
     }
+
+    // 같은 패키지의 실행 서비스에서 사용합니다. 메서드 자체가 돈을 이동시키지는 않습니다.
+    // 출금·입금 성공 뒤 호출하고 동일 트랜잭션에서 함께 저장해야 합니다.
+    void complete(UUID actorId) {
+        if (actorId == null) {
+            throw new IllegalArgumentException("Executor ID must be provided");
+        }
+        status = status.transitionTo(TransferStatus.COMPLETED);
+        executedBy = actorId;
+        completedAt = Instant.now();
+    }
+
+    public Instant getCompletedAt() { return completedAt; }
+    public UUID getExecutedBy() { return executedBy; }
 
     public UUID getReviewerId() { return reviewerId; }
     public Instant getReviewedAt() { return reviewedAt; }

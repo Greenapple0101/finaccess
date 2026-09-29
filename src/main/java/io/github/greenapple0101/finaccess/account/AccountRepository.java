@@ -18,6 +18,16 @@ package io.github.greenapple0101.finaccess.account;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.UUID;
+import java.util.Optional;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface AccountRepository extends JpaRepository<Account, UUID> {
+    // 이체 실행은 잔액을 읽기 전 쓰기 잠금을 잡습니다. 잠금은 트랜잭션 종료 시 해제됩니다.
+    // 모든 이체가 같은 계좌 잠금 순서를 사용해야 서로 반대 방향 이체의 교착 위험을 줄일 수 있습니다.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select a from Account a where a.id = :id")
+    Optional<Account> findLockedById(@Param("id") UUID id);
 }

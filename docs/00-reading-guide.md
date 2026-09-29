@@ -111,3 +111,10 @@ Gradle Wrapper가 생성한 gradlew와 wrapper 파일은 지금 읽지 않아도
 다음 [이체 요청 저장](16-transfer-request-persistence.md)에서는 V4 SQL → TransferRequest의 JPA 어노테이션 → Repository → 저장 테스트 순으로 연결합니다.
 
 [이체 요청 서비스](17-transfer-request-service.md)는 생성자 주입 → request의 조회·검증·저장 → 결과 record → 서비스 테스트 순으로 읽으세요.
+
+## 요청부터 실행까지 이어 읽기
+
+[18. 요청 API](18-transfer-api.md) → [19. 승인·반려](19-transfer-review.md) → [20. 내부 이체](20-internal-transfer.md) 순서입니다.
+TransferController에서 요청 경로를 찾고, TransferWorkflowService의 approve/reject/execute를 따라가세요.
+TransferRequest는 상태 변경, Account는 금액 변경, Repository는 조회·잠금을 담당합니다.
+TransferApiTest에서 HTTP 흐름, 롤백, 동시 실행 검증을 확인할 수 있습니다.

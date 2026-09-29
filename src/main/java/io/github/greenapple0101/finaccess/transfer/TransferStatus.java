@@ -2,7 +2,7 @@
 // 이체 업무에는 순서가 있습니다. 요청한 뒤 승인 또는 반려하고, 승인된 건만 완료합니다.
 // 이 파일은 그 상태 이름과 허용되는 이동 순서를 정의합니다. 상태 이동을 '전이'라고 부릅니다.
 // 아직 이체 한 건을 담는 Entity나 HTTP API가 아닙니다. DB 저장과 계좌 입출금도 하지 않습니다.
-// 먼저 가장 작은 업무 규칙을 만들고, 다음 단계에서 이체 객체가 이 규칙을 사용하게 합니다.
+// 현재 TransferRequest의 승인·반려·완료 메서드가 이 규칙을 사용합니다.
 package io.github.greenapple0101.finaccess.transfer;
 
 // enum(열거형)은 사용할 수 있는 값을 미리 정해 놓은 Java 타입입니다.
@@ -15,7 +15,7 @@ public enum TransferStatus {
     REQUESTED, // 이체 요청 접수: 아직 승인되지 않았고 돈도 이동하지 않은 상태.
     APPROVED,  // 승인됨: 실행을 허용받았다는 의미이며, 이체 완료와는 다릅니다.
     REJECTED,  // 반려됨: 이 요청은 종료됩니다. 다시 요청하려면 별도 요청을 만들어야 합니다.
-    COMPLETED; // 완료됨: 향후 실제 모의 입출금이 성공한 뒤에만 기록해야 하는 상태.
+    COMPLETED; // 완료됨: 모의 입출금과 같은 트랜잭션에서 성공 시 기록하는 상태.
     // 마지막 값 뒤의 세미콜론은 값 목록을 끝내고 아래에 메서드를 선언하기 위해 붙입니다.
 
     // [메서드 선언 읽기]
@@ -25,7 +25,7 @@ public enum TransferStatus {
     // 호출 대상 REQUESTED가 현재 상태이고, 인자 APPROVED가 목표 상태입니다.
     //
     // 중요: enum 값 자체는 바뀌지 않습니다. 검사에 통과한 next를 반환할 뿐입니다.
-    // 나중에 이체 객체가 status = status.transitionTo(next)처럼 결과를 저장해야 합니다.
+    // 이체 객체가 status = status.transitionTo(next)처럼 반환된 값을 필드에 저장합니다.
     // 이 메서드는 '누가 승인하는가'를 모릅니다. 자기 승인 금지·회사 권한은 별도 검사입니다.
     public TransferStatus transitionTo(TransferStatus next) {
         // null은 목표 상태를 전달하지 않았다는 뜻입니다. 정상적인 상태 값이 아닙니다.

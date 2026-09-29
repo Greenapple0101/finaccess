@@ -1,6 +1,7 @@
 package io.github.greenapple0101.finaccess.transfer;
 
 import java.util.UUID;
+import io.github.greenapple0101.finaccess.account.InsufficientBalanceException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -46,6 +47,17 @@ public class TransferController {
     @PostMapping("/{id}/reject")
     public TransferWorkflowService.TransferResult reject(@PathVariable UUID id, @RequestBody Actor body) {
         return workflow.reject(id, body.actorId());
+    }
+
+    // 승인된 요청의 모의 내부 이체를 실행합니다. 현재 actorId는 인증 전 실습용 입력입니다.
+    @PostMapping("/{id}/execute")
+    public TransferWorkflowService.TransferResult execute(@PathVariable UUID id, @RequestBody Actor body) {
+        return workflow.execute(id, body.actorId());
+    }
+
+    @ExceptionHandler({InsufficientBalanceException.class, TransferExecutionConflictException.class})
+    public ProblemDetail executionConflict(RuntimeException error) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, error.getMessage());
     }
 
     public record Actor(UUID actorId) {
