@@ -49,7 +49,7 @@ public class TransferRequest {
 
     // enum을 숫자 순번 대신 REQUESTED 같은 문자열로 저장합니다.
     // 선언 순서를 바꿔도 의미가 유지되지만 이름을 바꾸려면 DB 값도 고려해야 합니다.
-    // 현재는 상태 변경 메서드가 없습니다. 승인 단계에서 전이 규칙을 연결합니다.
+    // 상태 변경은 approve/reject/complete 전용 메서드에서 전이 규칙을 통과해야 합니다.
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private TransferStatus status;
@@ -58,6 +58,13 @@ public class TransferRequest {
     // 새 객체에 즉시 복사되는 설정은 아니므로 재조회 또는 refresh 후 확인합니다.
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
+
+    // 결재한 사람과 시각을 기록합니다. 요청 생성 시에는 아직 결재 전이므로 null입니다.
+    // 외래키는 V5 SQL에서 연결하며, 이 값은 로그인 검증된 신원이라는 뜻은 아닙니다.
+    @Column(name = "reviewer_id")
+    private UUID reviewerId;
+    @Column(name = "reviewed_at")
+    private Instant reviewedAt;
 
     // JPA가 조회 결과로 객체를 복원할 때 사용하는 인자 없는 생성자입니다.
     // protected로 접근 범위를 좁히고 일반 코드에는 아래의 검증하는 생성자를 사용하게 합니다.
@@ -101,6 +108,32 @@ public class TransferRequest {
         // 요청 생성과 승인은 별도 행동이어야 하므로 최초 상태를 여기서 정합니다.
         this.status = TransferStatus.REQUESTED;
     }
+
+    // approve/reject는 상태를 임의로 덮어쓰는 setter 대신 의미 있는 업무 행동을 공개합니다.
+    public void approve(UUID reviewerId) {
+        review(reviewerId, TransferStatus.APPROVED);
+    }
+
+    public void reject(UUID reviewerId) {
+        review(reviewerId, TransferStatus.REJECTED);
+    }
+
+    // 두 행동의 공통 검사입니다. 회사 소속은 DB 조회가 필요한 Service에서 검사합니다.
+    private void review(UUID reviewerId, TransferStatus next) {
+        if (reviewerId == null) {
+            throw new IllegalArgumentException("Reviewer ID must be provided");
+        }
+        if (requesterId.equals(reviewerId)) {
+            throw new TransferSelfReviewException();
+        }
+        // 전이가 실패하면 다음 대입들은 실행되지 않아 처리자·시각도 바뀌지 않습니다.
+        status = status.transitionTo(next);
+        this.reviewerId = reviewerId;
+        this.reviewedAt = Instant.now();
+    }
+
+    public UUID getReviewerId() { return reviewerId; }
+    public Instant getReviewedAt() { return reviewedAt; }
 
     // getter는 객체에 보관된 값을 읽어 반환하는 메서드입니다. DB 조회는 발생하지 않습니다.
     // setter(값을 덮어쓰는 메서드)는 제공하지 않습니다.

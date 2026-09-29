@@ -89,6 +89,76 @@ class TransferApiTest {
 
     @Autowired MockMvc mvc;
 
+    // 같은 회사의 별도 결재자와 다른 회사 사용자를 만들어 허용/거부 경계를 확인합니다.
+    private UUID reviewer() {
+        var company = companies.findById(accounts.findById(sourceId).orElseThrow().getCompany().getId()).orElseThrow();
+        return users.saveAndFlush(new AppUser(company, "https://identity.example", "reviewer")).getId();
+    }
+
+    private UUID outsider() {
+        var company = companies.findById(accounts.findById(otherCompanyAccountId).orElseThrow().getCompany().getId()).orElseThrow();
+        return users.saveAndFlush(new AppUser(company, "https://identity.example", "outsider")).getId();
+    }
+
+    private UUID newRequest() {
+        return service.request(sourceId, destinationId, 1000L, requesterId).id();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"approve", "reject"})
+    void reviewsAndPersistsActorAndTime(String action) throws Exception {
+        UUID id = newRequest();
+        UUID actor = reviewer();
+        String expected = action.equals("approve") ? "APPROVED" : "REJECTED";
+        mvc.perform(post("/api/transfers/" + id + "/" + action).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"actorId\":\"" + actor + "\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value(expected))
+                .andExpect(jsonPath("$.reviewerId").value(actor.toString()))
+                .andExpect(jsonPath("$.reviewedAt").isNotEmpty());
+        var loaded = transfers.findById(id).orElseThrow();
+        assertThat(loaded.getStatus().name()).isEqualTo(expected);
+        assertThat(loaded.getReviewerId()).isEqualTo(actor);
+        assertThat(loaded.getReviewedAt()).isNotNull();
+        assertThat(accounts.findById(sourceId).orElseThrow().getBalanceWon()).isZero();
+        // 동일 행동의 반복과 반대 결재 모두 409입니다. 최초 처리자·시각은 유지됩니다.
+        for (String again : new String[]{"approve", "reject"}) {
+            mvc.perform(post("/api/transfers/" + id + "/" + again).contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"actorId\":\"" + actor + "\"}"))
+                    .andExpect(status().isConflict()).andExpect(jsonPath("$.status").value(409));
+        }
+        assertThat(transfers.findById(id).orElseThrow().getReviewedAt()).isEqualTo(loaded.getReviewedAt());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"approve", "reject"})
+    void rejectsSelfAndOtherCompanyReview(String action) throws Exception {
+        UUID id = newRequest();
+        for (UUID actor : new UUID[]{requesterId, outsider()}) {
+            mvc.perform(post("/api/transfers/" + id + "/" + action).contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"actorId\":\"" + actor + "\"}"))
+                    .andExpect(status().isForbidden()).andExpect(jsonPath("$.status").value(403));
+        }
+        var loaded = transfers.findById(id).orElseThrow();
+        assertThat(loaded.getStatus()).isEqualTo(TransferStatus.REQUESTED);
+        assertThat(loaded.getReviewerId()).isNull();
+        assertThat(loaded.getReviewedAt()).isNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"approve", "reject"})
+    void rejectsMissingReviewActorAndTransfer(String action) throws Exception {
+        UUID id = newRequest();
+        mvc.perform(post("/api/transfers/" + id + "/" + action).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/transfers/" + id + "/" + action).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"actorId\":\"" + UUID.randomUUID() + "\"}"))
+                .andExpect(status().isNotFound());
+        mvc.perform(post("/api/transfers/" + UUID.randomUUID() + "/" + action).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"actorId\":\"" + reviewer() + "\"}"))
+                .andExpect(status().isNotFound());
+        assertThat(transfers.findById(id).orElseThrow().getStatus()).isEqualTo(TransferStatus.REQUESTED);
+    }
+
     // MockMvc는 서버 포트를 열지 않고 실제 Controller와 Service, DB까지 실행합니다.
     @Test
     void createsRequestAndCommits() throws Exception {

@@ -6,6 +6,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -17,10 +18,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/transfers") // 이 클래스에서 처리할 공통 주소입니다.
 public class TransferController {
     private final TransferRequestService requests;
+    private final TransferWorkflowService workflow;
 
     // 생성자 주입: Spring이 준비한 서비스 프록시를 받습니다.
-    public TransferController(TransferRequestService requests) {
+    public TransferController(TransferRequestService requests, TransferWorkflowService workflow) {
         this.requests = requests;
+        this.workflow = workflow;
     }
 
     @PostMapping // POST /api/transfers: 이체 실행이 아니라 요청 한 건 생성입니다.
@@ -32,6 +35,30 @@ public class TransferController {
         var result = requests.request(body.sourceAccountId(), body.destinationAccountId(),
                 body.amountWon(), body.requesterId());
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
+    }
+
+    // {id}의 문자열을 UUID로 변환해 전달합니다. actorId는 현재 로컬 실습용 입력입니다.
+    @PostMapping("/{id}/approve")
+    public TransferWorkflowService.TransferResult approve(@PathVariable UUID id, @RequestBody Actor body) {
+        return workflow.approve(id, body.actorId());
+    }
+
+    @PostMapping("/{id}/reject")
+    public TransferWorkflowService.TransferResult reject(@PathVariable UUID id, @RequestBody Actor body) {
+        return workflow.reject(id, body.actorId());
+    }
+
+    public record Actor(UUID actorId) {
+    }
+
+    @ExceptionHandler(TransferSelfReviewException.class)
+    public ProblemDetail selfReview(TransferSelfReviewException error) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, error.getMessage());
+    }
+
+    @ExceptionHandler(TransferStateConflictException.class)
+    public ProblemDetail stateConflict(TransferStateConflictException error) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, error.getMessage());
     }
 
     // record는 요청 데이터의 모양입니다. 엔티티를 직접 받지 않아 상태·생성 시각을 임의 입력하지 않습니다.

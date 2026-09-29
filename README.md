@@ -178,3 +178,5 @@ docker compose ps
 - [17. 이체 요청 서비스와 트랜잭션](docs/17-transfer-request-service.md)
 
 - [18. 이체 요청 HTTP API와 오류 응답](docs/18-transfer-api.md)
+
+- [19. 승인·반려와 결재자 분리](docs/19-transfer-review.md)

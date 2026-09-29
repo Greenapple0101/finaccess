@@ -49,7 +49,7 @@ public enum TransferStatus {
         // 같은 상태로 다시 이동하는 것도 거부합니다. 중복 요청 처리는 향후 별도 기능입니다.
         if (!allowed) {
             // +는 여기서 문자열을 이어 붙입니다. 현재 상태와 목표 상태를 오류에 남깁니다.
-            throw new IllegalStateException("Cannot transition from " + this + " to " + next);
+            throw new TransferStateConflictException("Cannot transition from " + this + " to " + next);
         }
         // return은 결과를 돌려주고 메서드를 종료합니다. DB나 잔액이 바뀌는 명령이 아닙니다.
         return next;
