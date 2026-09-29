@@ -197,3 +197,5 @@ docker compose ps
 전체 API는 인증 도입 전이며 외부 공개용으로 구성하지 않았습니다.
 
 - [20. 내부 이체·잠금·롤백 검증](docs/20-internal-transfer.md)
+
+- [2026.09.29 내부 공유용 진행 현황](docs/21-internal-progress-2026-09-29.md)
