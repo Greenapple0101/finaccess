@@ -1,19 +1,10 @@
-// [테스트 파일을 처음 읽는 방법]
-// 이 파일은 운영 요청을 처리하는 코드가 아니라, 기존 코드가 약속을 지키는지 자동 확인하는 코드입니다.
-// ./gradlew test를 실행하면 JUnit이 @Test 또는 @ParameterizedTest 메서드를 찾아 실행합니다.
-// 각 테스트는 준비(객체·데이터) → 실행(메서드·요청) → 검증(기대한 값)의 순서로 읽으세요.
-// 테스트 메서드가 파일에 적힌 순서대로 실행된다고 가정하면 안 됩니다.
-//
-// assertThat(실제값).isEqualTo(기대값): 값이 같아야 성공합니다.
-// isZero/isNotNull/isEmpty 등은 같은 방식으로 기대 조건을 표현합니다.
-// assertThatThrownBy(() -> 호출): 람다를 실행할 때 예외가 발생하는지 확인합니다.
-// 예외를 기대한 테스트에서 그 예외가 나면 테스트는 성공할 수 있습니다.
-// 테스트 실패는 기대 결과와 실제 결과가 다르다는 뜻이며, 전체 프로그램이 잘못됐다는 뜻만은 아닙니다.
-//
-// @ParameterizedTest는 같은 검증을 여러 입력에 반복합니다.
-// @ValueSource는 반복할 문자열·숫자들을 제공하고, @NullAndEmptySource는 null·빈 값을 제공합니다.
-// 예를 들어 0, -1, Long.MIN_VALUE를 지정하면 각각 별도의 테스트 실행으로 집계됩니다.
-// Long.MAX_VALUE/MIN_VALUE는 long 표현 범위의 끝값이며 실제 서비스 거래 한도는 아닙니다.
+// [이 파일의 역할] 계좌의 잔액 계산 규칙을 DB 없이 확인합니다.
+// 각 시험은 계좌 준비 → 입금/출금 실행 → 남은 잔액 확인 순서입니다.
+// 예를 들어 1,000원을 넣고 400원을 빼면 600원이 남아야 합니다.
+// assertThat은 확인할 값을 받습니다. isEqualTo(600L)은 600원, isZero()는 0원인지 검사합니다.
+// assertThatThrownBy는 잘못된 동작이 오류(예외)로 거절되는지 확인합니다.
+// 거절만 확인하지 않고 잔액까지 다시 확인해야 실패한 출금이 돈을 바꾸지 않았는지 알 수 있습니다.
+// @Test는 시험 한 개, @ParameterizedTest는 같은 시험을 여러 입력으로 반복하라는 표시입니다.
 
 package io.github.greenapple0101.finaccess.account;
 
@@ -25,8 +16,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-// DB 없이 생성·입출금 규칙을 검사하는 단위 테스트입니다.
 class AccountTest {
+    // 회사를 만들고 새 계좌를 열면, 그 회사 소유이고 잔액이 0원이어야 합니다.
     @Test
     void newAccountStartsAtZeroWon() {
         Company company = new Company("모의 회사");
@@ -35,6 +26,7 @@ class AccountTest {
         assertThat(account.getBalanceWon()).isZero();
     }
 
+    // 소유 회사 없이 계좌를 만들려고 하면 거절해야 합니다. null은 값이 없다는 뜻입니다.
     @Test
     void companyIsRequired() {
         assertThatThrownBy(() -> new Account(null))
@@ -42,7 +34,7 @@ class AccountTest {
                 .hasMessage("Company must be provided");
     }
 
-    // 입금 뒤 일부를 출금하고, 나머지 전액 출금까지 가능한지 확인합니다.
+    // 1,000원 입금 → 400원 출금 → 남은 600원 전부 출금 순서로 계산해 봅니다.
     @Test
     void depositsAndWithdrawsIncludingEntireBalance() {
         Account account = new Account(new Company("테스트 회사"));
@@ -53,7 +45,8 @@ class AccountTest {
         assertThat(account.getBalanceWon()).isZero();
     }
 
-    // 각 경계값을 양쪽 메서드에 적용하고 실패 후 잔액이 그대로인지 검사합니다.
+    // 0원·-1원·long의 가장 작은 수를 입금과 출금에 각각 넣어 봅니다.
+    // 잘못된 금액이 거절된 뒤에도 준비한 100원이 그대로 있어야 합니다.
     @ParameterizedTest
     @ValueSource(longs = {0, -1, Long.MIN_VALUE})
     void rejectsNonpositiveAmountsWithoutChangingBalance(long amount) {
@@ -65,6 +58,7 @@ class AccountTest {
         assertThat(account.getBalanceWon()).isEqualTo(100L);
     }
 
+    // 0원에서 1원 출금, 100원에서 101원 출금은 둘 다 거절되고 잔액은 유지되어야 합니다.
     @Test
     void rejectsInsufficientBalanceWithoutChangingIt() {
         Account account = new Account(new Company("테스트 회사"));
@@ -75,7 +69,8 @@ class AccountTest {
         assertThat(account.getBalanceWon()).isEqualTo(100L);
     }
 
-    // 자료형의 표현 범위를 검사하는 테스트이며 실제 서비스의 거래 한도는 아닙니다.
+    // Long.MAX_VALUE는 long에 담을 수 있는 가장 큰 정수입니다. 실제 거래 한도는 아닙니다.
+    // 그 값에서 1원을 더 넣으면 계산 오류가 나야 하고, 원래 잔액은 그대로여야 합니다.
     @Test
     void rejectsOverflowAndPreservesMaximumBalance() {
         Account account = new Account(new Company("테스트 회사"));

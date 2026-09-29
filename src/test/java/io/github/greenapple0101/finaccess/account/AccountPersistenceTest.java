@@ -1,32 +1,9 @@
-// [테스트 파일을 처음 읽는 방법]
-// 이 파일은 운영 요청을 처리하는 코드가 아니라, 기존 코드가 약속을 지키는지 자동 확인하는 코드입니다.
-// ./gradlew test를 실행하면 JUnit이 @Test 또는 @ParameterizedTest 메서드를 찾아 실행합니다.
-// 각 테스트는 준비(객체·데이터) → 실행(메서드·요청) → 검증(기대한 값)의 순서로 읽으세요.
-// 테스트 메서드가 파일에 적힌 순서대로 실행된다고 가정하면 안 됩니다.
-//
-// assertThat(실제값).isEqualTo(기대값): 값이 같아야 성공합니다.
-// isZero/isNotNull/isEmpty 등은 같은 방식으로 기대 조건을 표현합니다.
-// assertThatThrownBy(() -> 호출): 람다를 실행할 때 예외가 발생하는지 확인합니다.
-// 예외를 기대한 테스트에서 그 예외가 나면 테스트는 성공할 수 있습니다.
-// 테스트 실패는 기대 결과와 실제 결과가 다르다는 뜻이며, 전체 프로그램이 잘못됐다는 뜻만은 아닙니다.
-//
-// [이 파일은 통합 테스트]
-// @SpringBootTest는 앱의 Spring 구성을 준비합니다. 단순히 메서드만 new로 호출하는 것보다 넓은 검증입니다.
-// @Testcontainers와 @Container는 별도 PostgreSQL 컨테이너의 시작·종료를 JUnit과 연결합니다.
-// 개발용 Compose DB 대신 새 DB를 사용하므로 Docker가 필요합니다.
-// static final 컨테이너 필드는 이 테스트 클래스에서 공유할 참조를 뜻합니다.
-// @DynamicPropertySource는 컨테이너의 접속 정보를 Spring 설정으로 제공합니다.
-// postgres::getJdbcUrl의 ::는 메서드 참조입니다. 지금 문자열을 넘기는 대신 값을 제공할 함수를 넘깁니다.
-// Spring이 설정값을 필요로 할 때 이 함수를 호출할 수 있습니다.
-// @Autowired는 Spring이 준비한 Bean을 테스트 필드에 넣으라는 표시입니다.
-// 운영 Service는 생성자 주입을 사용하고, 테스트는 간편하게 필드 주입을 사용한 것입니다.
-//
-// EntityManager는 JPA 엔티티를 관리하는 인터페이스입니다.
-// flush는 변경한 SQL을 DB에 반영하고, clear는 관리 중인 객체를 영속성 컨텍스트에서 분리합니다.
-// flush 뒤 clear를 해야 이후 조회가 메모리 객체 재사용만으로 끝나는 일을 피할 수 있습니다.
-// JdbcTemplate은 SQL 실행과 결과 읽기를 도와줍니다. JPA 결과를 SQL로 독립 확인할 때 사용합니다.
-// 테스트의 @Transactional은 기본적으로 종료 시 롤백합니다.
-// @Transactional 없는 테스트에서는 Service/Repository가 커밋한 값을 확인하고 직접 정리합니다.
+// [이 파일의 역할] 계좌와 잔액을 실제 PostgreSQL에 저장하고 다시 읽어 봅니다.
+// 회사·계좌 준비 → 저장 또는 변경 → DB 재조회 → 값 확인 순서로 읽으세요.
+// Spring과 DB를 함께 검사하는 '통합 테스트'이며, Testcontainers를 위해 Docker가 필요합니다.
+// @Transactional은 이 파일에서 각 시험을 한 묶음으로 실행하고 끝나면 DB 변경을 취소하게 합니다.
+// 이 자동 취소를 '롤백'이라고 합니다. 실제 서비스가 저장을 확정하는 커밋 시험과는 다릅니다.
+// assertThat은 값 확인, assertThatThrownBy는 잘못된 입력이 오류로 거절되는지 확인하는 도구입니다.
 
 package io.github.greenapple0101.finaccess.account;
 
@@ -50,19 +27,18 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-// 계좌와 회사의 관계를 실제 PostgreSQL에서 검증하는 통합 테스트입니다.
-// 클래스의 Transactional은 각 테스트를 트랜잭션으로 실행하고 종료 후 기본적으로 롤백합니다.
-// 제약 위반 테스트는 예외를 예상하는 테스트이며 실패 로그가 보여도 의도한 결과일 수 있습니다.
+// @SpringBootTest는 실제 서비스와 저장소 등 앱의 Spring 구성을 준비합니다.
 @SpringBootTest
 @Testcontainers
 @Transactional
 class AccountPersistenceTest {
 
-    // 테스트 전용 DB 컨테이너입니다. Compose의 개발용 DB와 분리하며 종료 후 정리됩니다.
+    // Testcontainers가 별도 PostgreSQL을 시작하고 종료 후 정리합니다. 이 클래스의 시험들이 사용합니다.
     @Container
     static final PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17.11-bookworm");
 
-    // 컨테이너가 정한 접속 주소·계정·비밀번호를 Spring 테스트 설정에 전달합니다.
+    // 새 DB의 접속 주소·계정·비밀번호를 Spring에 알려줍니다.
+    // postgres::getJdbcUrl은 "주소가 필요하면 이 메서드를 호출하세요"라는 뜻입니다.
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
@@ -70,23 +46,21 @@ class AccountPersistenceTest {
         registry.add("spring.datasource.password", postgres::getPassword);
     }
 
-    // Spring이 준비한 객체를 테스트 필드에 주입합니다.
+    // @Autowired는 Spring이 준비한 도구를 이 변수에 넣어 달라는 표시입니다.
+    // Repository는 저장·조회, JdbcTemplate은 SQL 실행을 도와줍니다.
     @Autowired AccountRepository accounts;
-    // Spring이 준비한 객체를 테스트 필드에 주입합니다.
     @Autowired CompanyRepository companies;
-    // Spring이 준비한 객체를 테스트 필드에 주입합니다.
     @Autowired EntityManager entityManager;
-    // Spring이 준비한 객체를 테스트 필드에 주입합니다.
     @Autowired JdbcTemplate jdbc;
 
-    // [만든 순서 4] 저장 후 메모리의 객체를 비우고 DB에서 다시 읽습니다.
-    // 같은 회사가 여러 계좌를 가질 수 있으며 각 계좌는 0원으로 시작해야 합니다.
+    // 같은 회사에 계좌 두 개를 저장하고 다시 조회합니다. ID는 서로 다르고, 각 잔액은 0원이어야 합니다.
     @Test
     void savesAndReloadsMultipleZeroBalanceAccounts() {
         Company company = companies.saveAndFlush(new Company("계좌 테스트 회사"));
         Account first = accounts.saveAndFlush(new Account(company));
         Account second = accounts.saveAndFlush(new Account(company));
-        // 메모리의 관리 객체를 분리합니다. DB 행을 삭제하는 명령은 아닙니다.
+        // clear는 JPA가 기억하는 객체를 분리합니다. DB의 행을 삭제하는 명령이 아닙니다.
+        // 이후 조회가 방금 만든 메모리 객체를 그대로 돌려주는 데 그치지 않게 합니다.
         entityManager.clear();
 
         Account loaded = accounts.findById(first.getId()).orElseThrow();
@@ -98,7 +72,7 @@ class AccountPersistenceTest {
         assertThat(accounts.findById(second.getId()).orElseThrow().getBalanceWon()).isZero();
     }
 
-    // Java를 거치지 않은 직접 SQL에도 잔액의 DB 제약이 적용되는지 확인합니다.
+    // Java 코드를 건너뛰고 SQL로 -1원 계좌를 넣어도 DB가 거절해야 합니다.
     @Test
     void databaseRejectsNegativeBalance() {
         Company company = companies.saveAndFlush(new Company("테스트 회사"));
@@ -108,6 +82,7 @@ class AccountPersistenceTest {
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
+    // DB에 없는 회사 ID로 계좌를 저장하면 외래키 규칙이 거절해야 합니다.
     @Test
     void databaseRejectsMissingCompany() {
         assertThatThrownBy(() -> jdbc.update(
@@ -116,7 +91,7 @@ class AccountPersistenceTest {
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
-    // SQL에서 잔액을 생략했을 때에도 DB 기본값 0이 적용되어야 합니다.
+    // SQL에서 잔액 칸을 생략해도 DB가 기본값인 0원을 채우는지 확인합니다.
     @Test
     void databaseDefaultsBalanceToZero() {
         Company company = companies.saveAndFlush(new Company("테스트 회사"));
@@ -125,9 +100,8 @@ class AccountPersistenceTest {
         assertThat(accounts.findById(id).orElseThrow().getBalanceWon()).isZero();
     }
 
-    // 관리 중인 엔티티를 수정하면 다시 save하지 않아도 flush 시 UPDATE가 실행됩니다.
-    // clear 뒤 재조회하여 메모리뿐 아니라 DB 값이 바뀌었는지 확인합니다.
-    // 이 테스트의 트랜잭션은 끝나면 롤백됩니다.
+    // 1,000원 입금 뒤 300원을 빼면 700원입니다. 객체만 바꾸고 save를 다시 호출하지 않습니다.
+    // JPA가 관리 중인 객체의 변경을 알아채 DB에 반영하는 것을 "변경 감지"라고 합니다.
     @Test
     void dirtyCheckingPersistsBalanceChanges() {
         Company company = companies.saveAndFlush(new Company("잔액 테스트 회사"));
@@ -135,8 +109,8 @@ class AccountPersistenceTest {
         UUID id = account.getId();
         account.deposit(1000L);
         account.withdraw(300L);
+        // flush는 바뀐 잔액의 SQL을 DB로 보냅니다. 저장을 최종 확정하는 commit은 아닙니다.
         entityManager.flush();
-        // 메모리의 관리 객체를 분리합니다. DB 행을 삭제하는 명령은 아닙니다.
         entityManager.clear();
         assertThat(accounts.findById(id).orElseThrow().getBalanceWon()).isEqualTo(700L);
     }
