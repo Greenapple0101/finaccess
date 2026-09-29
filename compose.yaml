@@ -1,35 +1,32 @@
-# [이 파일은 Java 코드가 아니라 Docker Compose의 YAML 설정입니다]
-# 들여쓰기로 서비스·환경변수·볼륨의 소속을 표현합니다. 탭 대신 공백을 사용합니다.
-# image는 실행 파일 묶음, container는 그 이미지로 실행 중인 환경입니다.
-# ports 왼쪽은 내 컴퓨터, 오른쪽은 컨테이너 내부 포트입니다.
-# localhost:15432로 접속하면 컨테이너의 PostgreSQL 5432로 연결됩니다.
-# postgres_data는 데이터를 보관하는 이름 있는 볼륨입니다. 컨테이너와 수명이 다릅니다.
-# .env의 POSTGRES_PASSWORD를 Compose가 아래 변수 자리에 넣습니다.
-# :?는 값이 없거나 비었을 때 실패, :-는 값이 없거나 비었을 때 기본값 사용입니다.
-# up -d --wait는 백그라운드 실행 후 준비 상태를 기다립니다.
-# stop은 중지, down은 컨테이너·네트워크 제거, down -v는 데이터 볼륨까지 제거합니다.
-# 이 파일에서 만든 초기 사용자는 로컬 학습용 관리자입니다. 배포 계정 분리는 후속 단계입니다.
+# [이 파일이 하는 일] 개발용 PostgreSQL을 Docker로 실행하는 방법을 정합니다.
+# 이미지(image)는 실행에 필요한 파일 묶음, 컨테이너(container)는 그 묶음으로 만든 실행 환경입니다.
+# docker compose up -d --wait: 뒤에서 실행하고 DB가 연결받을 준비가 될 때까지 기다립니다.
+# docker compose stop: 잠시 멈춥니다. down -v는 저장 데이터까지 지우므로 같은 명령이 아닙니다.
+# YAML은 들여쓰기로 어느 설정에 속하는지 구분합니다. 아래 공백도 의미가 있습니다.
 
-# Docker Compose는 아래 서비스·네트워크·볼륨을 하나의 프로젝트로 관리합니다.
+# 이 설정으로 만든 컨테이너와 저장 공간을 묶어 부를 프로젝트 이름입니다.
 name: finaccess
 
 services:
   postgres:
-    # 공식 PostgreSQL 이미지의 버전을 고정합니다.
+    # 실행할 PostgreSQL의 버전을 지정합니다.
     image: postgres:17.11-bookworm
-    # 빈 데이터 디렉터리를 처음 초기화할 때 적용되는 DB 설정입니다.
+    # 비어 있는 DB 저장 공간을 처음 만들 때 쓸 DB 이름·사용자·비밀번호입니다.
+    # .env의 POSTGRES_PASSWORD를 가져옵니다. :?는 값이 없거나 비면 시작을 거부하라는 뜻입니다.
+    # 이미 만들어진 DB의 비밀번호가 .env 수정만으로 바뀌지는 않습니다.
     environment:
       POSTGRES_DB: finaccess
       POSTGRES_USER: finaccess
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
-    # 호스트의 15432를 컨테이너 내부 5432에 연결합니다. 로컬 주소에만 바인딩합니다.
+    # 왼쪽 15432는 내 컴퓨터의 접속 번호, 오른쪽 5432는 컨테이너 안 DB의 접속 번호입니다.
+    # 127.0.0.1은 이 컴퓨터에서 접속하는 주소입니다. :-15432는 값이 없거나 비면 쓸 기본값입니다.
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-15432}:5432"
-    # 데이터는 이름 있는 볼륨에 두므로 컨테이너 재생성 후에도 유지됩니다.
+    # DB 내용을 컨테이너 밖의 이름 있는 저장 공간에 둡니다. 컨테이너를 다시 만들어도 데이터를 보관합니다.
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    # 실행 중인지뿐 아니라 DB가 연결을 받을 준비가 됐는지 확인합니다.
-    # 비밀번호 인증이나 업무 쿼리 성공까지 검증하는 검사는 아닙니다.
+    # DB가 연결을 받을 준비가 됐는지 반복 확인합니다. 로그인·업무 쿼리 전체의 성공 검사는 아닙니다.
+    # 5초마다 확인, 한 번에 3초 제한, 실패 10회 기준이며 시작 직후 10초는 준비 시간을 줍니다.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U finaccess -d finaccess"]
       interval: 5s

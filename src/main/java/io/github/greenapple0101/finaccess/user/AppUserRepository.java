@@ -1,18 +1,9 @@
-// [이 파일의 역할: AppUser 저장소 계약]
-// interface는 구현 방법이 아니라 사용할 기능의 계약을 표현하는 Java 문법입니다.
-// extends JpaRepository<AppUser, UUID>는 기본 저장·조회 메서드를 상속합니다.
-// 첫 타입 인자 AppUser는 엔티티, 두 번째 UUID는 식별자 타입입니다.
-// 이 인터페이스를 직접 new로 생성할 수는 없습니다.
-// Spring Data JPA가 저장소 인터페이스를 찾아 프록시와 기본 구현을 구성해 빈으로 제공합니다.
-// 그래서 Service의 생성자에서 이 타입을 요구하면 구현 객체를 주입받을 수 있습니다.
-//
-// save: 신규 객체 영속화 또는 기존 상태 병합. 즉시 DB commit과 같은 뜻은 아닙니다.
-// findById: Optional로 한 행 조회 결과를 표현합니다.
-// saveAndFlush: SQL 반영까지 요청하지만 전체 트랜잭션 commit은 별개입니다.
-// 이 저장소 자체는 HTTP 상태 코드나 로그인 사용자의 접근 권한을 판단하지 않습니다.
+// [앱 사용자를 저장하고 찾는 통로]
+// 사용자 ID로 찾는 기본 조회와, 로그인 신원의 두 연결값으로 찾는 조회를 제공합니다.
+// JpaRepository에서 save·findById 등을 물려받고, 아래에는 연결값 조회를 추가했습니다.
+// Service가 저장소를 호출하면 Spring Data JPA가 준비한 구현 객체가 DB 조회를 처리합니다.
+// 이 저장소는 사용자 정보를 찾을 뿐 비밀번호나 토큰이 올바른지 검증하지는 않습니다.
 
-// package는 이 파일의 소속 주소입니다. 계층별 호출 순서를 나타내는 문법은 아닙니다.
-// 아래 import는 다른 패키지의 타입을 짧은 이름으로 쓰기 위한 선언이며, 실행이나 객체 생성이 아닙니다.
 package io.github.greenapple0101.finaccess.user;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -20,11 +11,14 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 import java.util.UUID;
 
+// AppUser는 저장할 데이터, UUID는 우리 앱 사용자 ID의 타입입니다.
+// interface에는 사용할 기능을 적습니다. 실제 구현은 Spring Data JPA가 준비하므로 여기에는 내용이 짧습니다.
 public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
-    // 메서드 이름에서 조건을 유도하는 Spring Data 기능입니다.
-    // findBy 뒤의 IdentityIssuer와 IdentitySubject는 엔티티의 필드명이고 And는 두 조건을 모두 요구합니다.
-    // 개념상 WHERE identity_issuer = ? AND identity_subject = ? 로 조회합니다.
-    // 문자열을 SQL에 직접 이어 붙이는 코드가 아니라 값 매개변수로 바인딩합니다.
-    // Optional<AppUser>는 값이 없을 가능성을 호출자에게 알려줍니다.
+    // 메서드 이름으로 조회 조건을 설명합니다.
+    // findBy는 "찾아라", IdentityIssuer와 IdentitySubject는 AppUser의 필드 이름,
+    // And는 "두 조건이 모두 맞아야 한다"는 뜻입니다.
+    // 예: 발급자 X와 사용자 "123"을 주면, 그 두 값을 함께 가진 사용자만 찾습니다.
+    // Spring Data JPA가 이름을 해석하고 입력값을 조회 조건에 연결합니다. SQL 문자열을 직접 조립하지 않습니다.
+    // Optional은 일치하는 사용자가 없을 수도 있다는 뜻입니다. 없을 때의 처리는 호출한 서비스가 결정합니다.
     Optional<AppUser> findByIdentityIssuerAndIdentitySubject(String identityIssuer, String identitySubject);
 }

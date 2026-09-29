@@ -1,18 +1,12 @@
-// [이 파일의 역할: Account 저장소 계약]
-// interface는 구현 방법이 아니라 사용할 기능의 계약을 표현하는 Java 문법입니다.
-// extends JpaRepository<Account, UUID>는 기본 저장·조회 메서드를 상속합니다.
-// 첫 타입 인자 Account는 엔티티, 두 번째 UUID는 식별자 타입입니다.
-// 이 인터페이스를 직접 new로 생성할 수는 없습니다.
-// Spring Data JPA가 저장소 인터페이스를 찾아 프록시와 기본 구현을 구성해 빈으로 제공합니다.
-// 그래서 Service의 생성자에서 이 타입을 요구하면 구현 객체를 주입받을 수 있습니다.
+// [계좌 데이터를 저장하고 찾는 통로]
+// 계좌 개설 서비스는 save를, 이체 서비스는 계좌 조회와 잠금 기능을 사용합니다.
+// Service → 저장소의 구현 객체 → JPA → DB 순서로 요청이 전달됩니다.
+// JpaRepository에서 일반 저장·조회 기능을 물려받고, 아래에는 잠금 조회 기능을 추가했습니다.
 //
-// save: 신규 객체 영속화 또는 기존 상태 병합. 즉시 DB commit과 같은 뜻은 아닙니다.
-// findById: Optional로 한 행 조회 결과를 표현합니다.
-// saveAndFlush: SQL 반영까지 요청하지만 전체 트랜잭션 commit은 별개입니다.
-// 이 저장소 자체는 HTTP 상태 코드나 로그인 사용자의 접근 권한을 판단하지 않습니다.
+// 잠금은 같은 계좌를 동시에 바꾸려는 DB 작업 사이에서 차례를 정하는 방법입니다.
+// 예를 들어 한 계좌에서 두 요청이 동시에 출금하려고 할 때, 한 요청이 처리 중이면 다른 쪽을 기다리게 합니다.
+// 로그인한 사람의 권한을 검사하는 기능과는 다릅니다.
 
-// package는 이 파일의 소속 주소입니다. 계층별 호출 순서를 나타내는 문법은 아닙니다.
-// 아래 import는 다른 패키지의 타입을 짧은 이름으로 쓰기 위한 선언이며, 실행이나 객체 생성이 아닙니다.
 package io.github.greenapple0101.finaccess.account;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -24,10 +18,19 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+// Account는 저장할 데이터 타입, UUID는 계좌 ID 타입입니다.
+// interface에는 사용 가능한 기능을 적고, 실제 저장소 객체는 Spring Data JPA가 준비합니다.
 public interface AccountRepository extends JpaRepository<Account, UUID> {
-    // 이체 실행은 잔액을 읽기 전 쓰기 잠금을 잡습니다. 잠금은 트랜잭션 종료 시 해제됩니다.
-    // 모든 이체가 같은 계좌 잠금 순서를 사용해야 서로 반대 방향 이체의 교착 위험을 줄일 수 있습니다.
+    // 아래 조회를 DB의 쓰기 잠금과 함께 실행하게 합니다. 서비스의 트랜잭션 안에서 호출해야 합니다.
+    // 잠금은 그 트랜잭션이 끝날 때 풀립니다. 일반 조회까지 전부 막는 잠금은 아닙니다.
+    // 두 계좌를 잠글 때 순서가 엇갈리면 서로 기다리는 상황(교착)이 생길 수 있습니다.
+    // 그래서 TransferWorkflowService는 계좌 ID를 비교해 항상 같은 순서로 잠급니다.
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    // "Account 객체 중 ID가 같은 것 하나를 찾아라"라는 조회식입니다.
+    // 이 문법은 테이블 이름을 쓰는 SQL이 아니라 Java 엔티티와 필드 이름을 쓰는 JPQL입니다.
+    // @Param("id")로 받은 값이 :id 자리에 연결됩니다. ID를 SQL 문자열에 직접 이어 붙이지 않습니다.
     @Query("select a from Account a where a.id = :id")
+    // Optional은 계좌가 있을 수도, 없을 수도 있다는 뜻입니다.
+    // 이름만 특별하게 붙여서 잠기는 것이 아니라 위의 @Lock이 잠금 동작을 지정합니다.
     Optional<Account> findLockedById(@Param("id") UUID id);
 }
