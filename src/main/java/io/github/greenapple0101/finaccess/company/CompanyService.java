@@ -37,13 +37,15 @@ public class CompanyService {
     // 직접 new로 만든 Service 호출이나 같은 객체 안에서의 호출에는 이 중간 담당이 끼어들지 않습니다.
     @Transactional
     public RegisteredCompany register(String name) {
-        // 괄호 안쪽부터 읽습니다. new Company(name)으로 이름 검사 → save로 저장 요청 → company에 결과 보관.
-        // 이 새 객체는 아직 ID가 없으므로 JPA가 새 회사로 판단합니다.
+        // 1. 회사 객체를 만듭니다. 이름이 비었거나 너무 길면 생성자에서 중단됩니다.
+        Company newCompany = new Company(name);
+
+        // 2. 저장을 요청하고 저장소가 돌려준 객체를 받습니다. 새 객체에는 아직 ID가 없어 신규 등록합니다.
         // save를 호출해도 실제 INSERT SQL은 트랜잭션 마무리까지 기다렸다가 실행될 수 있습니다.
-        Company company = companyRepository.save(new Company(name));
-        // 저장할 회사에서 ID와 이름만 꺼내 결과 묶음을 만듭니다.
+        Company savedCompany = companyRepository.save(newCompany);
+        // 3. 저장한 회사에서 ID와 이름만 꺼내 결과 묶음을 만듭니다.
         // 회사 객체 자체를 내보내지 않고, 응답에 필요한 항목을 골라 전달하는 것입니다.
-        return new RegisteredCompany(company.getId(), company.getName());
+        return new RegisteredCompany(savedCompany.getId(), savedCompany.getName());
     }
 
     // 조회용 작업임을 Spring/JPA에 알려 줍니다. readOnly는 읽기 전용 처리에 쓸 수 있는 힌트입니다.

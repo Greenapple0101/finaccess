@@ -54,7 +54,8 @@ public class CompanyController {
         // 먼저 Service의 register를 실행하고, 돌려받은 회사 정보를 응답 본문(body)에 담습니다.
         // ResponseEntity는 상태 코드와 본문을 함께 담는 응답입니다. CREATED는 HTTP 201, 즉 생성 성공입니다.
         // <CompanyService.RegisteredCompany>는 본문으로 담을 데이터의 종류를 나타냅니다.
-        return ResponseEntity.status(HttpStatus.CREATED).body(companyService.register(request.name()));
+        CompanyService.RegisteredCompany registeredCompany = companyService.register(request.name());
+        return ResponseEntity.status(HttpStatus.CREATED).body(registeredCompany);
     }
 
     // GET은 이미 있는 회사 조회에 사용합니다. {id}에는 회사마다 다른 ID가 들어갑니다.

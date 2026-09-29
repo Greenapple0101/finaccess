@@ -41,13 +41,17 @@ public class AccountService {
         // 이 조회는 "이 사람이 이 회사의 계좌를 만들어도 되는지"까지 검사하지 않습니다.
         Company company = companyRepository.findById(companyId)
                 .orElseThrow(() -> new CompanyNotFoundException(companyId));
-        // 2. 방금 찾은 회사로 0원 계좌 객체를 만들고 저장을 요청합니다.
-        // 회사 자체를 새로 등록하는 것이 아닙니다. 기존 회사에 새 계좌 하나를 연결합니다.
-        // JPA가 계좌 UUID를 만들며 실제 INSERT SQL은 트랜잭션 마무리 시점까지 늦춰질 수 있습니다.
-        Account account = accountRepository.save(new Account(company));
-        // 3. 응답에 필요한 계좌 ID·회사 ID·잔액만 골라 결과로 돌려줍니다.
+
+        // 2. 방금 찾은 회사로 0원 계좌 객체를 만듭니다. 기존 회사에 새 계좌 하나를 연결합니다.
+        Account newAccount = new Account(company);
+
+        // 3. 저장을 요청하고 저장소가 돌려준 객체를 받습니다. JPA가 계좌 UUID를 만듭니다.
+        // 실제 INSERT SQL은 트랜잭션 마무리 시점까지 늦춰질 수 있습니다.
+        Account savedAccount = accountRepository.save(newAccount);
+
+        // 4. 응답에 필요한 계좌 ID·회사 ID·잔액만 골라 결과로 돌려줍니다.
         // Controller가 이 결과를 받아 HTTP 201 응답의 JSON 본문에 넣습니다.
-        return new OpenedAccount(account.getId(), company.getId(), account.getBalanceWon());
+        return new OpenedAccount(savedAccount.getId(), company.getId(), savedAccount.getBalanceWon());
     }
 
     // record는 결과값을 한 묶음으로 전달하기 위한 Java 문법입니다.

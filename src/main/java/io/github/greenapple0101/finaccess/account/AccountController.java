@@ -41,7 +41,8 @@ public class AccountController {
     // ResponseEntity는 상태 코드와 데이터를 함께 담는 응답이며 CREATED는 "생성 성공"인 HTTP 201입니다.
     @PostMapping
     public ResponseEntity<AccountService.OpenedAccount> open(@PathVariable UUID companyId) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(accountService.open(companyId));
+        AccountService.OpenedAccount openedAccount = accountService.open(companyId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(openedAccount);
     }
 
     // Service가 "회사를 찾지 못했다"는 예외를 보내면 이 메서드가 HTTP 오류로 바꿉니다.
