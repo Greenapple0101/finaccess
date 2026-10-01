@@ -4,6 +4,8 @@
 
 **현재 인증 구조는 [24. JWT 검증과 업무 사용자 연결](docs/24-jwt-resource-server.md)을 확인하세요.** 이전 단계 문서는 당시의 구현 과정을 기록하므로, 인증 도입 전 요청 예시는 현재 API와 다를 수 있습니다.
 
+**LDAP 확장:** OpenLDAP 직원·그룹을 Keycloak User Federation으로 연동했습니다. [25. LDAP 신원과 회사·이체 연결](docs/25-ldap-identity.md)에서 Java 보안 코드를 유지하면서 외부 직원 계정으로 같은 업무 규칙을 검증한 과정을 읽을 수 있습니다.
+
 소스와 테스트 주석은 파일의 역할 → 실행 순서 → 구체적인 예시 순으로 설명합니다. [DB 변경 파일 쉬운 해설](docs/22-database-reading-guide.md)도 함께 볼 수 있습니다.
 
 기업 자금관리·이체 승인 과정을 구현하며 Spring, 인증·인가, 금융 거래의 정확성을 학습하는 프로젝트입니다.
@@ -42,6 +44,7 @@
 | 구성 | 책임 |
 | --- | --- |
 | Keycloak | 사용자 로그인, API별 역할 관리, 액세스 토큰 발급 |
+| OpenLDAP | 외부 직원 비밀번호·그룹 소속의 원본. Keycloak User Federation으로 연결 |
 | Apache APISIX | 토큰 검증, API 라우팅, Bearer 토큰 전달 |
 | Spring Security | 백엔드 자체의 JWT 검증, 클라이언트 역할에 따른 API 접근 제어 |
 | Spring 업무 로직 | 회사 소속, 자기 승인 금지, 잔액, 거래 상태 검증 |
