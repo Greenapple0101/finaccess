@@ -22,6 +22,7 @@ import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.header.writers.StaticHeadersWriter;
 
 @Configuration // Spring이 아래 @Bean 메서드로 보안 도구를 준비합니다.
 @EnableWebSecurity // 웹 요청의 보안 검사에 필요한 Spring 구성을 연결합니다.
@@ -32,6 +33,9 @@ public class SecurityConfig {
         authenticationConverter.setJwtGrantedAuthoritiesConverter(new KeycloakClientRolesConverter());
 
         http
+                // 응답을 만든 앱의 이름표입니다. 성공뿐 아니라 401·403에도 붙여 검사 위치를 비교합니다.
+                // 요청자가 보낸 같은 이름의 헤더는 사용하지 않습니다. 인증을 대신하는 증명도 아닙니다.
+                .headers(headers -> headers.addHeaderWriter(new StaticHeadersWriter("X-Finlab-Backend", "finaccess")))
                 // 쿠키로 자동 전송되는 로그인 세션을 사용하지 않고, 매 요청의 Bearer 토큰을 검사합니다.
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 // 이 API는 쿠키 인증을 받지 않으므로 CSRF 검사를 끕니다. 쿠키 로그인으로 바꾸면 재검토해야 합니다.
@@ -41,9 +45,11 @@ public class SecurityConfig {
                         // ERROR는 서버가 정하는 재처리 종류입니다. 외부의 GET /error를 공개하는 규칙이 아닙니다.
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/hello").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/me").authenticated()
+                        // 로그인에 성공했어도 이 앱의 역할이 하나도 없으면 앱 정보를 읽을 수 없습니다.
+                        // approver와 admin은 user가 없어도 허용하므로 세 역할 중 하나면 됩니다.
+                        .requestMatchers(HttpMethod.GET, "/api/me").hasAnyRole("user", "approver", "admin")
                         .requestMatchers(HttpMethod.POST, "/api/companies", "/api/companies/*/accounts").hasRole("admin")
-                        .requestMatchers(HttpMethod.GET, "/api/companies/*").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/companies/*").hasAnyRole("user", "approver", "admin")
                         .requestMatchers(HttpMethod.POST, "/api/transfers").hasAnyRole("user", "admin")
                         .requestMatchers(HttpMethod.POST, "/api/transfers/*/approve", "/api/transfers/*/reject", "/api/transfers/*/execute")
                         .hasAnyRole("approver", "admin")

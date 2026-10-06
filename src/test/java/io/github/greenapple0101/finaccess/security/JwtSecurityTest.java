@@ -24,11 +24,13 @@ import java.util.function.Consumer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -37,6 +39,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest({MeController.class, HelloController.class, JwtSecurityTest.PolicyProbe.class})
@@ -77,7 +80,8 @@ class JwtSecurityTest {
     void publicHelloWorksButIdentityHeadersDoNotAuthenticateProtectedApi() throws Exception {
         mockMvc.perform(get("/api/hello")).andExpect(status().isOk());
         mockMvc.perform(get("/api/me").header("X-User-Id", "admin").header("X-Role", "admin"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("X-Finlab-Backend", "finaccess"));
     }
 
     @Test
@@ -93,9 +97,11 @@ class JwtSecurityTest {
 
     @Test
     void signedAccessTokenReturnsIdentityWithoutLeakingToken() throws Exception {
-        mockMvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, bearer(claims -> {})))
+        mockMvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, bearer(claims -> {}))
+                        .header("X-Finlab-Backend", "attacker-chosen-name"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.sub").value("user-123"))
                 .andExpect(jsonPath("$.issuer").value(ISSUER)).andExpect(jsonPath("$.roles[0]").value("user"))
+                .andExpect(header().string("X-Finlab-Backend", "finaccess"))
                 .andExpect(jsonPath("$.token").doesNotExist());
     }
 
@@ -147,8 +153,9 @@ class JwtSecurityTest {
                 .claim("resource_access", roles("finadmin-api", List.of("admin")))
                 .claim("realm_access", Map.of("roles", List.of("admin"))));
         mockMvc.perform(post("/api/companies").header(HttpHeaders.AUTHORIZATION, token)).andExpect(status().isForbidden());
-        mockMvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, token)).andExpect(status().isOk())
-                .andExpect(jsonPath("$.roles").isEmpty());
+        // 다른 앱의 관리자여도 FinAccess 역할이 없으면 내 정보 API까지 거절합니다.
+        mockMvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, token)).andExpect(status().isForbidden())
+                .andExpect(header().string("X-Finlab-Backend", "finaccess"));
     }
 
     @Test
@@ -158,6 +165,64 @@ class JwtSecurityTest {
             String token = bearer(claims -> claims.claim("resource_access", malformed));
             mockMvc.perform(post("/api/companies").header(HttpHeaders.AUTHORIZATION, token)).andExpect(status().isForbidden());
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"user", "approver", "admin"})
+    void eachApplicationRoleCanUseSharedReads(String role) throws Exception {
+        // bob은 approver만, 관리자는 admin만 갖고 있어도 공통 조회를 할 수 있어야 합니다.
+        String token = bearer(claims -> claims.claim("resource_access", roles("finaccess-api", List.of(role))));
+        for (String path : List.of("/api/me", "/api/companies/demo")) {
+            mockMvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, token)).andExpect(status().isOk());
+        }
+    }
+
+    @Test
+    void sharedReadsRejectAbsentUnknownOrMalformedApplicationRoles() throws Exception {
+        Object[] invalidClaims = {null, Map.of(), roles("finaccess-api", List.of()),
+                roles("finaccess-api", List.of("auditor")), roles("finaccess-api", "admin"),
+                roles("finaccess-api", List.of(123)), roles("finadmin-api", List.of("admin"))};
+        for (Object resourceAccess : invalidClaims) {
+            String token = bearer(claims -> claims.claim("resource_access", resourceAccess));
+            for (String path : List.of("/api/me", "/api/companies/demo")) {
+                mockMvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, token)).andExpect(status().isForbidden());
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "/api/companies, admin, user",
+            "/api/companies/demo/accounts, admin, approver",
+            "/api/transfers, user, approver",
+            "/api/transfers, admin, approver",
+            "/api/transfers/demo/approve, approver, user",
+            "/api/transfers/demo/reject, approver, user",
+            "/api/transfers/demo/execute, approver, user",
+            "/api/transfers/demo/approve, admin, user",
+            "/api/transfers/demo/reject, admin, user",
+            "/api/transfers/demo/execute, admin, user"
+    })
+    void everyWritePolicyChecksItsOwnAllowedRoles(String path, String allowed, String denied) throws Exception {
+        // 같은 주소에 역할이 다른 토큰을 보내, 서명 검사 후 역할에 따라 결과가 달라지는지 확인합니다.
+        mockMvc.perform(post(path).header(HttpHeaders.AUTHORIZATION,
+                        bearer(claims -> claims.claim("resource_access", roles("finaccess-api", List.of(allowed))))))
+                .andExpect(status().isOk());
+        mockMvc.perform(post(path).header(HttpHeaders.AUTHORIZATION,
+                        bearer(claims -> claims.claim("resource_access", roles("finaccess-api", List.of(denied))))))
+                .andExpect(status().isForbidden());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "POST, /api/me", "HEAD, /api/me", "OPTIONS, /api/me", "PUT, /api/companies",
+            "GET, /api/transfers", "POST, /api/companies/demo", "GET, /api/unknown",
+            "POST, /api/transfers/demo/approve/extra"
+    })
+    void evenAdminCannotUseUnlistedMethodsOrPaths(String method, String path) throws Exception {
+        String token = bearer(claims -> claims.claim("resource_access", roles("finaccess-api", List.of("admin"))));
+        mockMvc.perform(request(HttpMethod.valueOf(method), path).header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isForbidden());
     }
 
     private static Map<String, Object> roles(String client, Object values) {
@@ -189,7 +254,10 @@ class JwtSecurityTest {
     static class PolicyProbe {
         @GetMapping("/error")
         Map<String, String> errorProbe() { return Map.of("result", "error-dispatch"); }
-        @PostMapping({"/api/companies", "/api/transfers/demo/approve"})
+        @GetMapping("/api/companies/demo")
+        Map<String, String> companyRead() { return Map.of("result", "accepted"); }
+        @PostMapping({"/api/companies", "/api/companies/demo/accounts", "/api/transfers",
+                "/api/transfers/demo/approve", "/api/transfers/demo/reject", "/api/transfers/demo/execute"})
         Map<String, String> accepted() { return Map.of("result", "accepted"); }
     }
 }
