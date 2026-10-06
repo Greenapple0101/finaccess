@@ -161,9 +161,12 @@ class JwtSecurityTest {
     @Test
     void malformedRoleStructuresNeverGrantAdmin() throws Exception {
         for (Object malformed : List.of("admin", Map.of("finaccess-api", "admin"), roles("finaccess-api", "admin"),
-                roles("finaccess-api", List.of(123, Map.of("role", "admin")))) ) {
+                roles("finaccess-api", List.of(123, Map.of("role", "admin"))),
+                roles("finaccess-api", List.of("admin", 123)), roles("finaccess-api", List.of("admin", "")),
+                roles("finaccess-api", List.of("admin", "   ")))) {
             String token = bearer(claims -> claims.claim("resource_access", malformed));
             mockMvc.perform(post("/api/companies").header(HttpHeaders.AUTHORIZATION, token)).andExpect(status().isForbidden());
+            mockMvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, token)).andExpect(status().isForbidden());
         }
     }
 

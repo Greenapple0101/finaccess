@@ -6,6 +6,7 @@ package io.github.greenapple0101.finaccess.security;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
+import java.util.List;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -29,9 +30,12 @@ public class KeycloakClientRolesConverter implements Converter<Jwt, Collection<G
             return authorities;
         }
         for (Object roleValue : roles) {
-            if (roleValue instanceof String role && !role.isBlank()) {
-                authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
+            // 목록에 숫자·객체·빈 역할이 하나라도 섞이면 전체 역할을 거절합니다.
+            // 앞에서 admin을 읽었더라도 반환하지 않아 Gateway와 같은 실패 규칙을 지킵니다.
+            if (!(roleValue instanceof String role) || role.isBlank()) {
+                return List.of();
             }
+            authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
         }
         return authorities;
     }
