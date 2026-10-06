@@ -14,30 +14,36 @@
 ## 목표
 
 - 금융 도메인: 이체 상태, 승인 통제, 중복 처리 방지, 동시성, 감사 기록을 구현합니다.
-- 회사 발표: Keycloak·Apache APISIX·독립적인 두 Spring Resource Server의 JWT 검증과 권한 검사 책임을 설명합니다.
+- 회사 발표: Keycloak·API7 Enterprise·독립적인 두 Spring Resource Server의 JWT 검증과 권한 검사 책임을 설명합니다.
 - 개인 학습: 작은 기능을 구현하고 테스트하며 Spring의 동작을 이해합니다.
 - 이번 범위: FinAdmin과 FinAccess를 각각 실행하고 Gateway와 각 백엔드의 인증·인가를 검증합니다.
 - 향후 별도 범위: Kubernetes·Istio·부하 실험. SSO 시연은 이번 목표에 포함하지 않습니다.
 
-## 첫 번째 완성 범위
+## 목표와 현재 구현 범위
 
-담당자 로그인 → 회사 계좌 조회 → 이체 요청 → 다른 결재자 승인 또는 반려 → 모의 내부 이체 → 감사 조회
+현재: 담당자 로그인 → 이체 요청 → 다른 결재자 승인 또는 반려 → 모의 내부 이체.
+
+향후: 계좌 목록·거래·감사 조회 API와 감사 담당자 역할. 현재 계좌 개설 API와 업무 데이터는 있으며 조회·감사 기능 전체를 구현한 상태는 아닙니다.
 
 | 역할 | 할 수 있는 일 |
 | --- | --- |
-| 자금 담당자 | 소속 회사 계좌 조회와 이체 요청 |
+| 자금 담당자 | 현재 이체 요청. 계좌 목록 조회는 향후 |
 | 결재자 | 소속 회사 이체 요청 승인·반려 |
-| 감사 담당자 | 소속 회사 거래·승인 기록 조회 |
+| 감사 담당자 — 향후 | 거래·승인 기록 조회 역할과 API |
 
 ### 반드시 지킬 규칙
 
 1. 다른 회사의 계좌와 거래에 접근할 수 없습니다.
 2. 자신의 이체 요청을 자신이 승인할 수 없습니다.
-3. 동일 요청을 재전송해도 중복 이체가 발생하지 않습니다.
+3. 같은 이체 ID를 다시 실행해도 중복 출금되지 않습니다. 신규 요청 재전송의 멱등키는 향후 과제입니다.
 4. 동시 승인에도 이체는 한 번만 실행됩니다.
 5. 잔액 검증과 출금·입금 기록은 원자적으로 처리합니다.
 6. 실패한 내부 이체는 일부 금액만 반영된 상태로 남지 않습니다.
-7. 이체와 승인 상태 변화의 수행자·시간·결과를 기록합니다.
+7. 이체 모델의 수행자·상태는 저장하며, 모든 상태 변화의 감사 이벤트 기록과 조회는 향후 과제입니다.
+
+![FinLab API7 Enterprise 현재 아키텍처](https://raw.githubusercontent.com/Greenapple0101/finadmin/main/docs/images/finlab-api7-enterprise-architecture.png)
+
+[현재 아키텍처 설명](https://github.com/Greenapple0101/finadmin/blob/main/docs/10-architecture.md) · [API7·Spring 역할 정책표](https://github.com/Greenapple0101/finadmin/blob/main/docs/14-gateway-rbac-policy.md)
 
 ## 기술의 책임
 
@@ -45,7 +51,7 @@
 | --- | --- |
 | Keycloak | 사용자 로그인, API별 역할 관리, 액세스 토큰 발급 |
 | OpenLDAP | 외부 직원 비밀번호·그룹 소속의 원본. Keycloak User Federation으로 연결 |
-| Apache APISIX | 토큰 검증, API 라우팅, Bearer 토큰 전달 |
+| API7 Enterprise | JWT 검증, 경로·메서드별 기본 ACL 역할 검사, 라우팅·같은 Bearer 토큰 전달 |
 | Spring Security | 백엔드 자체의 JWT 검증, 클라이언트 역할에 따른 API 접근 제어 |
 | Spring 업무 로직 | 회사 소속, 자기 승인 금지, 잔액, 거래 상태 검증 |
 | PostgreSQL | 업무 데이터 저장과 트랜잭션 |
@@ -68,7 +74,7 @@ FinAccess는 Spring MVC·JPA로 업무 데이터를 처리합니다. 별도 [Fin
 
 ## 개발 환경과 실행
 
-**Keycloak·APISIX·두 백엔드를 함께 실행하려면 [FinAdmin 통합 실행 가이드](https://github.com/Greenapple0101/finadmin#실행하기)를 사용하세요.** 아래 명령은 FinAccess만 로컬에서 실행하는 방법입니다. 통합 실습에서는 FinAccess 직접 호출 포트가 18082이고, Gateway 주소는 `http://localhost:18090/access/`입니다.
+**Keycloak·API7 Enterprise·두 백엔드를 함께 실행하려면 [FinAdmin 통합 실행 가이드](https://github.com/Greenapple0101/finadmin#실행하기)를 사용하세요.** 아래 명령은 FinAccess만 로컬에서 실행하는 방법입니다. 통합 실습에서는 FinAccess 직접 호출 포트가 18082이고, Gateway 주소는 `http://localhost:18090/access/`입니다.
 
 - Java 21
 - Spring Boot 4.1.1
@@ -98,7 +104,7 @@ curl -i http://localhost:8080/api/hello
 ```
 
 HTTP 200과 JSON `{"message":"Hello, FinAccess!"}`을 반환합니다.
-이 API는 첫 요청·응답을 학습하기 위한 공개 예제입니다.
+이 API는 백엔드 직접 호출의 공개 진단 예외입니다. API7을 거친 `/access/api/hello`에는 토큰과 FinAccess 역할이 필요합니다.
 
 ## 단계별 설명
 
@@ -145,7 +151,7 @@ docker compose ps
 
 ## 업무 사용자와 회사 소속
 
-`app_users`는 회사 한 곳에 소속되며, 인증 발급자와 사용자 식별자 조합으로 로그인 계정과 연결할 준비를 합니다.
+`app_users`는 회사 한 곳에 소속되며, 인증 발급자와 사용자 식별자 조합으로 로그인 계정과 연결합니다.
 검증된 JWT의 `iss + sub`로 이 표를 조회합니다. 업무 DB에 등록되지 않은 신원은 이체 업무에서 403으로 거부합니다. 사용자 등록 API는 없으며 통합 실습의 초기 데이터 준비 단계에서 연결합니다.
 
 - [09. 업무 사용자와 회사 소속](docs/09-user-company.md)

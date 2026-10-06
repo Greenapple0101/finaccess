@@ -13,7 +13,7 @@ OpenLDAP의 직원과 그룹
   → Keycloak User Federation
   → Keycloak 그룹의 finaccess-api Client Role
   → 서명된 JWT
-  → APISIX 검사·전달
+  → API7 Enterprise JWT·역할 검사 및 전달
   → FinAccess JWT·역할 검사
   → CurrentAppUser가 iss + sub로 app_users 조회
   → 회사 소속과 이체 규칙 검사

@@ -7,7 +7,7 @@ Keycloak 실행·사용자 설정·Gateway와 두 앱 통합 실행은 [FinAdmin
 ## 1. 요청이 지나가는 순서
 
 1. 프런트가 `Authorization: Bearer 액세스토큰`을 넣어서 요청합니다.
-2. APISIX가 검증하고 같은 토큰을 FinAccess에 전달합니다.
+2. API7 Enterprise가 JWT와 경로·메서드별 앱 역할을 검사하고 같은 토큰을 FinAccess에 전달합니다.
 3. FinAccess의 Spring Security도 JWT를 직접 검증합니다. Gateway가 보낸 사용자 ID 헤더만 보고 믿지 않습니다.
 4. 토큰이 유효하면 이 API에 필요한 역할을 확인합니다.
 5. Controller가 검증된 `Jwt`를 받습니다.
@@ -58,11 +58,11 @@ Docker 내부에서 `localhost`는 해당 컨테이너 자신입니다. 따라�
 
 | API | 필요한 역할 및 업무 조건 |
 | --- | --- |
-| `GET /api/hello` | 공개 |
-| `GET /api/me` | 정상 토큰, 토큰 원문 없이 sub·issuer·역할 반환 |
+| `GET /api/hello` | 백엔드 직접 호출만 공개. Gateway 경유는 user·approver·admin 중 하나 필요 |
+| `GET /api/me` | 정상 토큰 + user·approver·admin 중 하나. 토큰 원문 없이 sub·issuer·역할 반환 |
 | `POST /api/companies` | `admin` |
 | `POST /api/companies/{id}/accounts` | `admin` |
-| `GET /api/companies/{id}` | 자기 회사의 연결된 사용자. `admin`은 여러 회사 조회 허용 |
+| `GET /api/companies/{id}` | user·approver·admin 중 하나 + 자기 회사의 연결된 사용자. `admin`은 여러 회사 조회 허용 |
 | `POST /api/transfers` | `user` 또는 `admin`, 출금 회사 소속 필요 |
 | `POST /api/transfers/{id}/approve` | `approver` 또는 `admin`, 출금 회사 소속·자기 승인 금지 |
 | `POST /api/transfers/{id}/reject` | `approver` 또는 `admin`, 출금 회사 소속·자기 반려 금지 |
