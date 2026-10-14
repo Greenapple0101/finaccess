@@ -4,6 +4,16 @@ import jakarta.servlet.DispatcherType;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
+import java.util.List;
+import java.time.Duration;
+import java.time.Instant;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtClaimValidator;
+import org.springframework.security.oauth2.jwt.JwtIssuerValidator;
+import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -41,6 +51,22 @@ public class SecurityConfig {
             // 서명이 틀리면 401로 끝납니다. 아래의 역할 변환도 진행하지 않습니다.
             .oauth2ResourceServer(resource -> resource.jwt(jwt -> jwt.jwtAuthenticationConverter(converter)));
         return http.build();
+    }
+
+    // 두 서버 모두 자기 힘으로 서명·발급자·대상·시간을 확인합니다.
+    // 같은 Mac에서 시연하므로 시계 오차 허용은 0초입니다. 운영에서는 서버 시간 동기화와 함께 정합니다.
+    @Bean
+    JwtDecoder jwtDecoder(
+            @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuer,
+            @Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri}") String jwks) {
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(jwks).build();
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+            new JwtTimestampValidator(Duration.ZERO),
+            new JwtIssuerValidator(issuer),
+            new JwtClaimValidator<List<String>>("aud", value -> value != null && value.contains("oauth-api")),
+            new JwtClaimValidator<Instant>("exp", value -> value != null),
+            new JwtClaimValidator<String>("sub", value -> value != null && !value.isBlank())));
+        return decoder;
     }
 
     // 이 메서드에는 검증을 마친 JWT만 들어옵니다. 단순히 디코딩한 내용을 믿는 것이 아닙니다.

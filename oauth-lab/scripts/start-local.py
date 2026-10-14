@@ -18,7 +18,8 @@ pid_file = PRIVATE / 'finaccess.pid'
 if pid_file.exists():
     previous = subprocess.run(['ps', '-p', pid_file.read_text().strip(), '-o', 'command='], capture_output=True, text=True)
     if str(ROOT / 'build/libs/finaccess-oauth.jar') in previous.stdout:
-        raise SystemExit('FinAccess가 이미 실행 중입니다: http://localhost:18100/')
+        print('FinAccess가 이미 실행 중입니다: http://localhost:18100/')
+        raise SystemExit(0)
 with socket.socket() as connection:
     if connection.connect_ex(('127.0.0.1', 18100)) == 0:
         raise SystemExit('18100 포트를 사용 중입니다. 기존 실습 서버를 중지한 뒤 실행하세요.')
