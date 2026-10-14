@@ -1,5 +1,7 @@
 # FinAccess
 
+> 현재 OAuth 학습용 프런트와 USER API는 [oauth-lab](oauth-lab/README.md)에 있습니다. `oauth-focus` 브랜치에서 이 폴더만 실행합니다. 아래 금융 앱 설명은 이전 구현의 보관 자료입니다.
+
 **코드 읽기가 처음이라면 [쉬운 설명과 코드 읽는 순서](docs/00-reading-guide.md)부터 시작하세요.**
 
 **현재 인증 구조는 [24. JWT 검증과 업무 사용자 연결](docs/24-jwt-resource-server.md)을 확인하세요.** 이전 단계 문서는 당시의 구현 과정을 기록하므로, 인증 도입 전 요청 예시는 현재 API와 다를 수 있습니다.
