@@ -26,11 +26,11 @@ python3 oauth-lab/scripts/start-local.py
 4. 브라우저가 같은 주소의 `/api/user/me`에 Bearer 토큰을 붙입니다.
 5. Spring이 서명·발급자·대상·시간을 검증하고 USER 역할을 검사합니다.
 
-`alice`는 USER, `admin`은 ADMIN 역할만 갖습니다. ADMIN이 자동으로 USER까지 포함하지 않습니다. 기존 Realm의 소문자 역할은 finadmin의 `oauth-lab/scripts/configure-roles.py`로 변경했습니다. 이전 토큰은 바뀌지 않으므로 다시 발급합니다.
+`ldap-user`·`alice`는 USER, `ldap-admin`·`admin`은 ADMIN 역할만 갖습니다. LDAP 계정은 부서 속성도 응답에 표시합니다. ADMIN이 자동으로 USER까지 포함하지 않습니다. 기존 Realm의 소문자 역할은 finadmin의 `oauth-lab/scripts/configure-roles.py`로 변경했습니다. 이전 토큰은 바뀌지 않으므로 다시 발급합니다.
 
 ## 화면에서 확인
 
-- alice로 토큰 받기 → **내 USER 권한 확인** → 200
+- ldap-user로 토큰 받기 → **내 USER 권한 확인** → 200
 - **토큰 없이 호출** → 401
 - USER 역할 없이 같은 API 호출 → 403
 
@@ -53,8 +53,10 @@ curl -i -H "Authorization: Bearer $ACCESS_TOKEN" http://localhost:18100/api/user
 
 프런트는 토큰 원문을 메모리에만 보관합니다. 화면은 발급 여부와 API 결과만 표시합니다. **토큰 지우기**는 Keycloak 로그아웃이나 이미 발급한 토큰의 폐기가 아닙니다.
 
-## 이번 단계와 다음 단계
+## 현재 범위
 
-이번 단계는 프런트 소유 위치 이동과 FinAccess 직접 호출입니다. 기존 OAuth2 흐름을 유지하여 `scope=demo.read`를 요청하며 ID Token은 사용하지 않습니다. 새 전체 요구사항의 OIDC·LDAP, FinAdmin 로컬 API와 API7 연결, SCIM은 이 이동으로 완료된 것이 아닙니다.
+OAuth2 Code+PKCE로 `scope=demo.read`를 요청하며 ID Token은 사용하지 않습니다. LDAP 계정 로그인과 FinAdmin의 로컬 API·API7 연결도 확인했습니다. 부서는 속성으로 전달하며, 부서별 인가 규칙이나 SCIM 프로비저닝은 구현하지 않았습니다.
 
-공식 근거: [Spring JWT Resource Server](https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html)
+Spring의 시계 오차 허용은 로컬 실습에서 0초입니다. JWT 서명·iss·aud·exp·sub를 확인하며 nbf가 있으면 시간 검사에 포함합니다.
+
+관리자 시연과 부서 동기화 구분은 [FinAdmin 실행 가이드](https://github.com/Greenapple0101/finadmin/blob/oauth-focus/oauth-lab/RUNBOOK.md)를 참고하세요.
