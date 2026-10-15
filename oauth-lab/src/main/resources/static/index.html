@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FinAccess · USER 인증 실습</title>
+<style>
+body{max-width:780px;margin:48px auto;padding:0 24px;font:17px/1.7 system-ui;color:#193249;background:#f5f8fa}h1{font-size:30px}section{background:white;padding:24px;border:1px solid #dbe4ec;border-radius:12px;margin:20px 0}button{font:inherit;padding:9px 16px;margin:5px 5px 5px 0;border:1px solid #176452;border-radius:7px;background:#176452;color:white;cursor:pointer}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#edf3f6;padding:16px;border-radius:8px}small{color:#536473}
+</style>
+<h1>FinAccess 사용자 앱</h1>
+<p>Keycloak에서 Access Token을 받고, API7을 거쳐 FinAccess USER API를 호출합니다.</p>
+<section>
+<h2>1. Access Token 받기</h2>
+<p>Keycloak에서 LDAP 일반 사용자 ldap-user 또는 내부 사용자 alice로 인증합니다. 비밀번호는 이 페이지에 입력하지 않습니다.</p>
+<button id="authorize">Keycloak에서 토큰 받기</button>
+<button id="refresh">토큰 갱신</button>
+<button id="clear">이 페이지의 토큰 지우기</button>
+<pre id="token">아직 받은 토큰이 없습니다.</pre>
+<small>토큰은 메모리에만 보관합니다. 새로고침하면 사라집니다. 토큰 지우기는 Keycloak 세션 종료나 서버의 토큰 폐기가 아닙니다.</small>
+</section>
+<section>
+<h2>2. FinAccess USER API 호출</h2>
+<p>브라우저 → API7 → FinAccess Spring · <code>GET /oauth-access/api/user/me</code></p>
+<button id="read">내 USER 권한 확인</button>
+<button id="anonymous">토큰 없이 호출</button>
+<pre id="result" aria-live="polite">요청 결과가 여기에 표시됩니다.</pre>
+<small>예상 결과: USER 역할이면 200 · USER 역할이 없으면 403 · 토큰이 없으면 401</small>
+</section>
+<p>화면은 FinAccess가 제공합니다. USER API는 브라우저에서, ADMIN API는 별도 화면 없이 curl에서 호출하며 둘 다 API7을 거칩니다.</p>
+<script src="app.js"></script>
+</html>
