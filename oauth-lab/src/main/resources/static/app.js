@@ -4,9 +4,10 @@ const issuer = 'http://localhost:18180/realms/oauth-lab';
 const endpoint = issuer + '/protocol/openid-connect';
 const clientId = 'oauth-browser';
 const redirectUri = 'http://localhost:18100/';
-// 상대 주소를 쓰면 이 화면을 제공한 FinAccess Spring으로 바로 요청합니다.
-// API7(18090)과 FinAdmin을 거치지 않습니다.
-const apiPath = '/api/user/me';
+// 화면은 FinAccess(18100)에서 받지만, API 요청은 API7(18090)으로 보냅니다.
+// API7이 JWT와 USER 역할을 검사하고, /oauth-access를 뗀 뒤 FinAccess로 전달합니다.
+// 포트가 다르므로 브라우저는 먼저 OPTIONS로 허용 여부(CORS)를 확인합니다.
+const apiPath = 'http://localhost:18090/oauth-access/api/user/me';
 let tokens = null;
 const show = (id, message) => document.getElementById(id).textContent = message;
 
@@ -37,7 +38,7 @@ async function exchange(parameters) {
   if (!response.ok) throw new Error('토큰 교환 실패: ' + (body.error || response.status));
   if (body.id_token) throw new Error('예상과 달리 ID Token이 발급되었습니다. scope 설정을 확인하세요.');
   tokens = body;
-  // 토큰 원문과 사용자 정보를 화면에 출력하지 않습니다. FinAccess Spring이 검증할 토큰을 그대로 보냅니다.
+  // 토큰 원문과 사용자 정보를 화면에 출력하지 않습니다. API7과 FinAccess Spring이 검증할 토큰을 그대로 보냅니다.
   show('token', JSON.stringify({발급: '성공', token_type: body.token_type,
     expires_in: body.expires_in, scope: body.scope, ID_Token: '없음'}, null, 2));
 }
@@ -61,7 +62,11 @@ async function callApi(withoutToken = false) {
   const headers = {};
   if (!withoutToken && tokens) headers.Authorization = 'Bearer ' + tokens.access_token;
   const response = await fetch(apiPath, {headers});
-  show('result', `HTTP ${response.status}\n${await response.text()}`);
+  // API7이 이 두 응답 헤더를 CORS expose_headers로 허용해서 화면에서도 읽을 수 있습니다.
+  // Backend 헤더는 Spring 필터에 도달했다는 뜻이며, Controller 성공을 보장하지 않습니다.
+  const gateway = response.headers.get('X-OAuth-Gateway') || '없음';
+  const backend = response.headers.get('X-Finlab-Backend') || '없음';
+  show('result', `HTTP ${response.status}\nGateway: ${gateway}\nBackend: ${backend}\n${await response.text()}`);
 }
 
 // 예외가 생겨도 사용자에게 이유를 보여 줍니다. 자동 갱신은 하지 않아 만료 후 401도 관찰할 수 있습니다.
