@@ -1,10 +1,12 @@
 # FinAccess 사용자 화면과 USER API
 
+[현재 문서 목차](../docs/README.md) · [전체 아키텍처](https://github.com/Greenapple0101/finadmin/blob/main/docs/current/02-architecture.md)
+
 현재 실습 화면은 FinAccess에 있습니다. FinAccess Spring 하나가 HTML·JavaScript와 USER API를 함께 제공합니다. 화면은 18100에서 받지만, 화면이 보내는 USER API 요청은 API7(18090)을 경유합니다. FinAdmin에는 사용자 화면을 두지 않습니다.
 
 ## 실행
 
-Java 21, Python 3을 사용합니다. 두 저장소는 같은 부모 폴더에 두고 모두 `oauth-focus` 브랜치를 사용합니다.
+Java 21, Python 3을 사용합니다. 두 저장소는 같은 부모 폴더에 두고 현재 코드가 병합된 `main`을 사용합니다. `oauth-focus`에도 동일한 현재 코드가 있습니다.
 
 ```sh
 # finadmin 저장소: Keycloak과 옆 FinAccess를 함께 시작
@@ -18,7 +20,7 @@ python3 oauth-lab/scripts/start-local.py
 
 API7의 `oauth-finaccess` 서비스와 `oauth-access-get`·`oauth-access-deny` Route가 필요합니다. FinAdmin의 `oauth-lab` 폴더에서 `python3 scripts/init-api7.py`로 없는 설정만 추가합니다.
 
-처음 실행하면 Spring JAR을 빌드합니다. DB, Docker, JUnit 테스트 코드는 사용하지 않습니다. 상위 폴더의 과거 금융 앱과 별도의 작은 Gradle 프로젝트입니다.
+처음 실행하면 Spring JAR을 빌드합니다. FinAccess 앱 자체는 업무 DB·Docker·JUnit 테스트 코드를 사용하지 않습니다. API7 제품과 제품 관리 DB는 기존 Docker 환경을 사용합니다. 상위 폴더의 과거 금융 앱과 별도의 작은 Gradle 프로젝트입니다.
 
 ## 요청 흐름
 
@@ -54,7 +56,7 @@ curl -i -H "Authorization: Bearer $ACCESS_TOKEN" http://localhost:18090/oauth-ac
 | `src/main/java/io/github/greenapple0101/finaccess/oauth/FinAccessApplication.java` | 앱 시작 |
 | 같은 패키지의 `SecurityConfig.java` | JWT 검증 연결, 검증된 역할을 Spring 권한으로 변환 |
 | 같은 패키지의 `UserController.java` | USER 요청에 간단한 JSON 반환 |
-| `src/main/resources/application.properties` | 포트, issuer, JWKS, audience |
+| `src/main/resources/application.properties` | 포트, issuer, JWKS. audience 검사는 SecurityConfig에서 설정 |
 
 프런트는 토큰 원문을 메모리에만 보관합니다. 화면은 발급 여부와 API 결과만 표시합니다. **토큰 지우기**는 Keycloak 로그아웃이나 이미 발급한 토큰의 폐기가 아닙니다.
 
@@ -64,6 +66,6 @@ OAuth2 Code+PKCE로 `scope=demo.read`를 요청하며 ID Token은 사용하지 �
 
 Spring의 시계 오차 허용은 로컬 실습에서 0초입니다. JWT 서명·iss·aud·exp·sub를 확인하며 nbf가 있으면 시간 검사에 포함합니다.
 
-[2026-10-15 API7 연결 결과](https://github.com/Greenapple0101/finadmin/blob/oauth-focus/oauth-lab/RESULTS-2026-10-15.md)를 확인할 수 있습니다.
+[2026-10-15 API7 연결 결과](https://github.com/Greenapple0101/finadmin/blob/main/oauth-lab/RESULTS-2026-10-15.md)를 확인할 수 있습니다.
 
-관리자 시연과 부서 동기화 구분은 [FinAdmin 실행 가이드](https://github.com/Greenapple0101/finadmin/blob/oauth-focus/oauth-lab/RUNBOOK.md)를 참고하세요.
+관리자 시연과 부서 동기화 구분은 [FinAdmin 실행 가이드](https://github.com/Greenapple0101/finadmin/blob/main/oauth-lab/RUNBOOK.md)를 참고하세요.

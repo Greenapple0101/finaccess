@@ -1,5 +1,7 @@
 # FinAccess 프런트 이동 확인
 
+> **초기 단계의 과거 기록입니다.** 아래 USER API 직접 호출 설명은 당시 상태입니다. 현재 양쪽 API의 API7 경유 구성은 [10/15 결과](https://github.com/Greenapple0101/finadmin/blob/main/oauth-lab/RESULTS-2026-10-15.md)와 [현재 문서](../docs/README.md)를 읽습니다.
+
 확인일: 2026-10-14, 로컬 macOS / Java 21 / Spring Boot 4.1.1 / Keycloak 26.7.4.
 
 | 요청 | 예상 | 실제 |

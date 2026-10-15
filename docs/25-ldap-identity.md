@@ -1,4 +1,8 @@
-# LDAP 직원 계정을 FinAccess 업무 사용자와 연결하기
+> **과거 학습 기록 — 현재 실행 가이드가 아닙니다.**
+> 현재 OAuth2 최소 구성은 [문서 목차](README.md)에서 확인합니다. 이 문서의 금융·ITSM·DB·이전 인증 설정, 주소, 역할 이름과 캡처는 작성 당시의 자료입니다.
+> 본문의 “현재”·“최신”도 당시 시점을 뜻합니다. 과거 검사 개수를 이번 검증으로 합산하지 않습니다. 현재 실행 코드는 두 저장소의 `oauth-lab/`이며 USER·ADMIN API 모두 API7을 경유합니다.
+
+# [과거 기록] LDAP 직원 계정을 FinAccess 업무 사용자와 연결하기
 
 2026-10-01에 FinLab에 OpenLDAP을 추가했습니다. 실행 설정은 두 앱을 함께 관리하는 [FinAdmin 저장소](https://github.com/Greenapple0101/finadmin)에 있습니다. 전체 설정 이유와 콘솔 실습은 [LDAP 핸즈온 보고서](https://github.com/Greenapple0101/finadmin/blob/main/docs/13-ldap-federation-hands-on.md)를 읽습니다.
 
