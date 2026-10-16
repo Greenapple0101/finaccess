@@ -20,4 +20,4 @@
 
 학습과 구현 완료를 구분합니다. Client Credentials·Implicit·SCIM·AI Gateway는 [개념·조사 문서](https://github.com/Greenapple0101/finadmin/blob/main/oauth-lab/OAUTH-NOTES.md)를 읽되, 이번에 실제 구현·검증한 것으로 말하지 않습니다. 자동화 테스트 소스는 새 최소 실습에 추가하지 않았고 브라우저·curl 관찰 기록으로 동작을 확인했습니다.
 
-금융 DB·이체·ITSM 학습은 [이전 학습 기록](../README.md#이전-학습-기록)에서 다시 볼 수 있습니다. 현재 OAuth2 학습을 위해 먼저 모두 읽을 필요는 없습니다.
+위 순서대로 현재 OAuth2 흐름을 한 단계씩 확인합니다. 파일을 읽은 뒤 해당 요청의 응답과 연결해서 설명해 보세요.

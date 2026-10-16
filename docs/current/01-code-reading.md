@@ -15,7 +15,7 @@
 | 5 | [SecurityConfig.java](../../oauth-lab/src/main/java/io/github/greenapple0101/finaccess/oauth/SecurityConfig.java) | 토큰 검증·USER 접근 규칙 |
 | 6 | [UserController.java](../../oauth-lab/src/main/java/io/github/greenapple0101/finaccess/oauth/UserController.java) | 검증된 사용자 번호·부서·역할 응답 |
 
-루트 `src`의 회사·계좌·이체 클래스와 `frontend`의 예전 ITSM 화면을 따라갈 필요는 없습니다. 현재 앱은 Entity·Repository·JPA·업무 DB 없이 Java 파일 3개로 구성합니다. 시작 명령과 인증 서버 설정은 [공통 RUNBOOK](https://github.com/Greenapple0101/finadmin/blob/main/oauth-lab/RUNBOOK.md)에 있습니다.
+앱은 `oauth-lab/src/main`의 Java 파일 3개와 정적 화면 파일로 구성합니다. Entity·Repository·JPA·업무 DB는 사용하지 않습니다. 시작 명령과 인증 서버 설정은 [공통 RUNBOOK](https://github.com/Greenapple0101/finadmin/blob/main/oauth-lab/RUNBOOK.md)에 있습니다.
 
 ## 브라우저에서 버튼을 누르면
 

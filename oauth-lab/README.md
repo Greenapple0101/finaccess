@@ -20,7 +20,7 @@ python3 oauth-lab/scripts/start-local.py
 
 API7의 `oauth-finaccess` 서비스와 `oauth-access-get`·`oauth-access-deny` Route가 필요합니다. FinAdmin의 `oauth-lab` 폴더에서 `python3 scripts/init-api7.py`로 없는 설정만 추가합니다.
 
-처음 실행하면 Spring JAR을 빌드합니다. FinAccess 앱 자체는 업무 DB·Docker·JUnit 테스트 코드를 사용하지 않습니다. API7 제품과 제품 관리 DB는 기존 Docker 환경을 사용합니다. 상위 폴더의 과거 금융 앱과 별도의 작은 Gradle 프로젝트입니다.
+처음 실행하면 Spring JAR을 빌드합니다. FinAccess 앱 자체는 업무 DB·Docker·JUnit 테스트 코드를 사용하지 않습니다. API7 제품과 제품 관리 DB는 기존 Docker 환경을 사용합니다. `oauth-lab/build.gradle`이 현재 앱의 빌드 설정이며 저장소 루트에서도 같은 앱을 빌드합니다.
 
 ## 요청 흐름
 
@@ -33,7 +33,7 @@ API7의 `oauth-finaccess` 서비스와 `oauth-access-get`·`oauth-access-deny` R
 
 화면(18100)과 API7(18090)은 포트가 달라 브라우저의 CORS 사전 확인이 필요합니다. API7은 `http://localhost:18100`의 GET·Authorization 헤더만 허용하고 OPTIONS에 직접 응답합니다. 이 OPTIONS 200은 API 인증 성공이 아니라 본 요청을 보내도 되는지에 대한 응답입니다. 실제 GET에는 JWT·USER 검사가 적용됩니다. CORS는 브라우저 정책이며 curl 차단용 인증 기능이 아닙니다.
 
-`ldap-user`·`alice`는 USER, `ldap-admin`·`admin`은 ADMIN 역할만 갖습니다. LDAP 계정은 부서 속성도 응답에 표시합니다. ADMIN이 자동으로 USER까지 포함하지 않습니다. 기존 Realm의 소문자 역할은 finadmin의 `oauth-lab/scripts/configure-roles.py`로 변경했습니다. 이전 토큰은 바뀌지 않으므로 다시 발급합니다.
+`ldap-user`·`alice`는 USER, `ldap-admin`·`admin`은 ADMIN 역할만 갖습니다. LDAP 계정은 부서 속성도 응답에 표시합니다. ADMIN이 자동으로 USER까지 포함하지 않습니다. 역할 연결은 finadmin의 `oauth-lab/scripts/configure-roles.py`에서 관리합니다. 역할 설정을 바꾼 뒤에는 새 토큰을 발급합니다.
 
 ## 화면에서 확인
 
