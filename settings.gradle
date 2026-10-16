@@ -1,1 +1,3 @@
+// 이 저장소의 실행 앱은 oauth-lab 하나입니다.
 rootProject.name = 'finaccess'
+include 'oauth-lab'

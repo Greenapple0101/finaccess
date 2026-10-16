@@ -1,43 +1,19 @@
-HELP.md
-.gradle
+# Gradle과 편집기가 다시 만드는 파일
+.gradle/
 build/
-!gradle/wrapper/gradle-wrapper.jar
-!**/src/main/**/build/
-!**/src/test/**/build/
-
-### STS ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
 bin/
-!**/src/main/**/bin/
-!**/src/test/**/bin/
-
-### IntelliJ IDEA ###
-.idea
-*.iws
-*.iml
-*.ipr
 out/
-!**/src/main/**/out/
-!**/src/test/**/out/
-
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-
-### VS Code ###
+.idea/
+*.iml
 .vscode/
-
-### Local files and secrets ###
+.classpath
+.project
+.settings/
 .DS_Store
+
+# 계정·라이선스·토큰·실행 데이터는 로컬에만 보관합니다.
+.local/
 .env
 .env.*
-!.env.example
+*.log
+__pycache__/
