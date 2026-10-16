@@ -6,7 +6,7 @@
 
 ## 실행
 
-Java 21, Python 3을 사용합니다. 두 저장소는 같은 부모 폴더에 두고 현재 코드가 병합된 `main`을 사용합니다. `oauth-focus`에도 동일한 현재 코드가 있습니다.
+Java 21, Python 3을 사용합니다. 아래 Python 시작 도구는 macOS용입니다. 두 저장소는 같은 부모 폴더에 두고 현재 코드가 병합된 `main`을 사용합니다.
 
 ```sh
 # finadmin 저장소: Keycloak과 옆 FinAccess를 함께 시작
@@ -33,11 +33,11 @@ API7의 `oauth-finaccess` 서비스와 `oauth-access-get`·`oauth-access-deny` R
 
 화면(18100)과 API7(18090)은 포트가 달라 브라우저의 CORS 사전 확인이 필요합니다. API7은 `http://localhost:18100`의 GET·Authorization 헤더만 허용하고 OPTIONS에 직접 응답합니다. 이 OPTIONS 200은 API 인증 성공이 아니라 본 요청을 보내도 되는지에 대한 응답입니다. 실제 GET에는 JWT·USER 검사가 적용됩니다. CORS는 브라우저 정책이며 curl 차단용 인증 기능이 아닙니다.
 
-`ldap-user`·`alice`는 USER, `ldap-admin`·`admin`은 ADMIN 역할만 갖습니다. LDAP 계정은 부서 속성도 응답에 표시합니다. ADMIN이 자동으로 USER까지 포함하지 않습니다. 역할 연결은 finadmin의 `oauth-lab/scripts/configure-roles.py`에서 관리합니다. 역할 설정을 바꾼 뒤에는 새 토큰을 발급합니다.
+Keycloak 자체 계정 `alice`는 USER, `admin`은 ADMIN 역할만 갖습니다. ADMIN이 자동으로 USER까지 포함하지 않습니다. 역할 연결은 finadmin의 `oauth-lab/scripts/configure-roles.py`에서 관리합니다. 역할 설정을 바꾼 뒤에는 새 토큰을 발급합니다.
 
 ## 화면에서 확인
 
-- ldap-user로 토큰 받기 → **내 USER 권한 확인** → 200, `Gateway: api7-enterprise`와 `Backend: finaccess` 표시
+- alice로 토큰 받기 → **내 USER 권한 확인** → 200, `Gateway: api7-enterprise`와 `Backend: finaccess` 표시
 - **토큰 없이 호출** → 401
 - ADMIN만 가진 계정으로 같은 API 호출 → API7에서 403, `Backend: 없음`
 
@@ -62,10 +62,10 @@ curl -i -H "Authorization: Bearer $ACCESS_TOKEN" http://localhost:18090/oauth-ac
 
 ## 현재 범위
 
-OAuth2 Code+PKCE로 `scope=demo.read`를 요청하며 ID Token은 사용하지 않습니다. LDAP 계정 로그인과 FinAccess·FinAdmin의 API7 경유 호출을 확인했습니다. Spring 직접 호출도 검증 비교용으로 남아 있으며, 직접 호출을 네트워크에서 차단한 구성은 아닙니다. 부서는 속성으로 전달하며, 부서별 인가 규칙이나 SCIM 프로비저닝은 구현하지 않았습니다.
+OAuth2 Code+PKCE로 `scope=demo.read`를 요청하며 ID Token은 사용하지 않습니다. Keycloak 자체 계정 로그인과 FinAccess·FinAdmin의 API7 경유 호출을 실습합니다. Spring 직접 호출도 검증 비교용으로 남아 있으며, 직접 호출을 네트워크에서 차단한 구성은 아닙니다.
 
 Spring의 시계 오차 허용은 로컬 실습에서 0초입니다. JWT 서명·iss·aud·exp·sub를 확인하며 nbf가 있으면 시간 검사에 포함합니다.
 
-[2026-10-15 API7 연결 결과](https://github.com/Greenapple0101/finadmin/blob/main/oauth-lab/RESULTS-2026-10-15.md)를 확인할 수 있습니다.
+[현재 검증 기록](https://github.com/Greenapple0101/finadmin/blob/main/docs/current/06-verification.md)를 확인할 수 있습니다.
 
-관리자 시연과 부서 동기화 구분은 [FinAdmin 실행 가이드](https://github.com/Greenapple0101/finadmin/blob/main/oauth-lab/RUNBOOK.md)를 참고하세요.
+관리자 로그인과 역할 검사 시연은 [FinAdmin 실행 가이드](https://github.com/Greenapple0101/finadmin/blob/main/oauth-lab/RUNBOOK.md)를 참고하세요.

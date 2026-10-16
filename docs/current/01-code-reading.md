@@ -13,7 +13,7 @@
 | 3 | [index.html](../../oauth-lab/src/main/resources/static/index.html) | 로그인·갱신·API 호출 버튼과 결과 영역 |
 | 4 | [app.js](../../oauth-lab/src/main/resources/static/app.js) | PKCE 로그인 시작, 토큰 교환, API7 호출 |
 | 5 | [SecurityConfig.java](../../oauth-lab/src/main/java/io/github/greenapple0101/finaccess/oauth/SecurityConfig.java) | 토큰 검증·USER 접근 규칙 |
-| 6 | [UserController.java](../../oauth-lab/src/main/java/io/github/greenapple0101/finaccess/oauth/UserController.java) | 검증된 사용자 번호·부서·역할 응답 |
+| 6 | [UserController.java](../../oauth-lab/src/main/java/io/github/greenapple0101/finaccess/oauth/UserController.java) | 검증된 사용자 번호·역할 응답 |
 
 앱은 `oauth-lab/src/main`의 Java 파일 3개와 정적 화면 파일로 구성합니다. Entity·Repository·JPA·업무 DB는 사용하지 않습니다. 시작 명령과 인증 서버 설정은 [공통 RUNBOOK](https://github.com/Greenapple0101/finadmin/blob/main/oauth-lab/RUNBOOK.md)에 있습니다.
 
@@ -53,7 +53,7 @@ API:  http://localhost:18090/oauth-access/api/user/me
 
 `readRoles()`는 **검증 후의** JWT에서 resource_access → oauth-api → roles를 읽고 USER·ADMIN을 Spring 내부 이름 ROLE_USER·ROLE_ADMIN으로 바꿉니다. 토큰에 ADMIN만 있으면 USER API는 403입니다. ADMIN이 자동으로 USER 권한까지 갖는 규칙을 만들지 않았습니다.
 
-마지막에 `UserController.me()`가 실행됩니다. Spring이 확인한 인증 객체에서 subject·department·roles를 읽습니다. DB에서 회사 소속을 찾거나 이체를 처리하지 않습니다. department는 표시용이며 부서별 인가를 구현한 것은 아닙니다.
+마지막에 `UserController.me()`가 실행됩니다. Spring이 확인한 인증 객체에서 subject·roles를 읽습니다. 업무 DB를 조회하거나 이체를 처리하지 않습니다.
 
 ## 요청 한 건으로 이해하기
 
@@ -64,4 +64,4 @@ API:  http://localhost:18090/oauth-access/api/user/me
 | 토큰 없음·변조·만료 | 401 | 도달하지 않음 |
 | 직접 18100에 ADMIN 요청 | 경유하지 않음 | USER 역할 부족 403 |
 
-응답의 `X-Finlab-Backend: finaccess`는 Spring 필터 도달 표시입니다. Controller 성공의 보증은 아니므로 상태 코드도 함께 읽습니다. 실제 캡처와 날짜별 검증: [검증 자료](https://github.com/Greenapple0101/finadmin/blob/main/docs/current/06-verification.md).
+응답의 `X-Finlab-Backend: finaccess`는 Spring 필터 도달 표시입니다. Controller 성공의 보증은 아니므로 상태 코드도 함께 읽습니다. 현재 구성 검증: [검증 자료](https://github.com/Greenapple0101/finadmin/blob/main/docs/current/06-verification.md).

@@ -1,7 +1,6 @@
 package io.github.greenapple0101.finaccess.oauth;
 
 import java.util.Map;
-import java.util.Objects;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,7 +17,6 @@ public class UserController {
             "application", "FinAccess",
             "message", "USER 권한으로 FinAccess API에 접근했습니다.",
             "subject", authentication.getName(),
-            "department", Objects.toString(authentication.getToken().getClaimAsString("department"), "미등록"),
             // Spring 내부 인증 표시는 제외하고, 업무 역할 USER/ADMIN만 응답으로 보여 줍니다.
             "roles", authentication.getAuthorities().stream().map(GrantedAuthority::getAuthority)
                 .filter(name -> name.startsWith("ROLE_")).map(name -> name.substring(5)).toList()

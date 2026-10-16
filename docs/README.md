@@ -11,14 +11,14 @@
 | [전체 범위·유즈케이스](https://github.com/Greenapple0101/finadmin/blob/main/docs/current/01-scope-use-cases.md) | FinAccess·FinAdmin·인증 서버의 책임 |
 | [전체 아키텍처·시퀀스](https://github.com/Greenapple0101/finadmin/blob/main/docs/current/02-architecture.md) | 현재 실행 주소와 로그인·API 흐름 |
 | [API 명세·권한표](https://github.com/Greenapple0101/finadmin/blob/main/docs/current/03-api-spec.md) | USER·ADMIN, 정상·실패 응답 |
-| [Keycloak·LDAP](https://github.com/Greenapple0101/finadmin/blob/main/docs/current/04-keycloak-ldap.md) | 사용자·그룹·department 연결 |
+| [Keycloak](https://github.com/Greenapple0101/finadmin/blob/main/docs/current/04-keycloak.md) | Keycloak 자체 계정·역할·토큰 설정 |
 | [API7 설정](https://github.com/Greenapple0101/finadmin/blob/main/docs/current/05-api7-authorization.md) | JWT·ACL·경로·메서드·CORS |
-| [검증 결과·캡처](https://github.com/Greenapple0101/finadmin/blob/main/docs/current/06-verification.md) | 실제 USER 200·ADMIN 403 화면과 날짜별 결과 |
+| [검증 기록](https://github.com/Greenapple0101/finadmin/blob/main/docs/current/06-verification.md) | 계정·역할·API 동작의 재현 기준과 확인 결과 |
 
 ## 실행·시연
 
 - [FinAccess 실행 요약](../oauth-lab/README.md)
 - [공통 RUNBOOK](https://github.com/Greenapple0101/finadmin/blob/main/oauth-lab/RUNBOOK.md)
-- [10/15 API7 연결 검사](https://github.com/Greenapple0101/finadmin/blob/main/oauth-lab/RESULTS-2026-10-15.md)
+- [현재 검증 기록](https://github.com/Greenapple0101/finadmin/blob/main/docs/current/06-verification.md)
 
-USER API는 검증된 신원·부서·역할을 응답하며 업무 DB를 조회하지 않습니다. ADMIN은 USER의 상위 Role로 자동 포함되지 않습니다.
+USER API는 검증된 신원·역할을 응답하며 업무 DB를 조회하지 않습니다. ADMIN은 USER의 상위 Role로 자동 포함되지 않습니다.
